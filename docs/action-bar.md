@@ -74,3 +74,36 @@ a11y = {
   execution remain host-side.
 - The host may expose the same action catalog over Unibus for agents, but the
   action bar itself never publishes on Unibus.
+
+## From an action catalog
+
+`fungos.ui.action_bar_from_catalog` projects the host/Canvas action catalog into
+the same bar.
+
+```lua
+local bar = ui.action_bar_from_catalog("app-actions", snapshot.actions, {
+  label = "Available actions",
+})
+```
+
+Expected descriptor fields:
+
+```lua
+{
+  id, label, description, shortcut,
+  input_schema, requires_input,       -- Canvas JSON Schema 2020-12
+  effect, idempotency, confirmation,
+  available, reason,
+  provider, catalog_revision, state_revision,
+  phases,
+}
+```
+
+- `requires_input = false` → plain click button.
+- `requires_input = true` → button carries the schema; the host opens the form.
+- `confirmation = "required" | "destructive"` → host confirmation gate.
+- `available = false` → disabled with `reason`.
+- `effect = "external"` → marked dangerous by default.
+
+DCP catalogs map directly: `input_schema`, `phases`, provider identity and both
+revisions are preserved. The action bar still emits intents only.

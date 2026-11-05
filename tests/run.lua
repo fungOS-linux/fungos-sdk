@@ -78,6 +78,29 @@ ok(bar.children[3].a11y.disabled == true, "disabled state should be exposed")
 ok(bar.children[3].a11y.disabled_reason == "No pending approval", "disabled reason should be exposed")
 ok(bar.children[4].kind == "spacer", "spacer should be preserved")
 
+-- action bar from a Canvas/DCP catalog
+local catalog_bar = ui.action_bar_from_catalog("catalog-actions", {
+  { id = "lights.on", label = "Lights on", description = "Turn lab lights on",
+    input_schema = "{}", requires_input = false, effect = "write",
+    idempotency = "idempotent", confirmation = "none", available = true,
+    provider = "unibus-hue", catalog_revision = "cat-1", state_revision = "state-1" },
+  { id = "lights.level", label = "Set level", input_schema = "{\"type\":\"object\",\"properties\":{\"level\":{\"type\":\"integer\",\"minimum\":0,\"maximum\":100}}}",
+    requires_input = true, effect = "write", idempotency = "keyed",
+    confirmation = "none", available = true },
+  { id = "mail.send", label = "Send mail", input_schema = "{}", requires_input = false,
+    effect = "external", idempotency = "unsafe", confirmation = "destructive",
+    available = false, reason = "No account" },
+}, { label = "Available actions" })
+ok(catalog_bar.role == "toolbar", "catalog bar should be a toolbar")
+ok(catalog_bar.children[1].action.action == "lights.on", "catalog action should become an intent")
+ok(catalog_bar.children[1].source == "unibus-hue", "provider should be retained")
+ok(catalog_bar.children[2].needs_input == true, "parameter action should request input")
+ok(catalog_bar.children[2].input_schema:find("maximum", 1, true) ~= nil, "input schema should be retained")
+ok(catalog_bar.children[3].disabled == true, "unavailable action should be disabled")
+ok(catalog_bar.children[3].disabled_reason == "No account", "unavailable reason should be retained")
+ok(catalog_bar.children[3].confirm == true, "destructive action should confirm")
+ok(catalog_bar.children[3].danger == true, "external action should be marked dangerous")
+
 -- config hide/order
 local hidden = config.hidden({ hide = { "rail.tags", "rail.footer" } })
 ok(hidden["rail.tags"] and hidden["rail.footer"], "hide set should contain entries")

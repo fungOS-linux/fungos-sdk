@@ -26,6 +26,10 @@ fungos-sdk/
   templates/      # user-spores and user-dotfiles starting points
 ```
 
+Action bars can be hand-authored or projected from a granted Canvas/DCP action
+catalog with `ui.action_bar_from_catalog`. See
+[`docs/action-bar.md`](docs/action-bar.md).
+
 ## The boundary
 
 ```text

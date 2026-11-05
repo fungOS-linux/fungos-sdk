@@ -246,6 +246,9 @@ function ui.action_button(id, label, opts)
   button.checked = opts.checked
   button.help = opts.help
   button.priority = opts.priority
+  button.needs_input = opts.needs_input == true
+  button.input_schema = opts.input_schema
+  button.source = opts.source
   button.a11y = {
     role = "button",
     label = tostring(label or ""),
@@ -298,6 +301,50 @@ function ui.action_bar(id, actions, opts)
     orientation = bar.orientation,
   }
   return bar
+end
+
+--- Build a top action bar from a host/granted action catalog.
+---
+--- Catalog actions use the Canvas/DCP shape:
+---
+---   { id, label, description, shortcut, input_schema, requires_input,
+---     effect, idempotency, confirmation, available, reason, phases,
+---     provider, catalog_revision, state_revision }
+---
+--- Parameterless actions become buttons. Actions with `requires_input` keep
+--- their JSON Schema so the host can open a form; the UI still emits only an
+--- intent.
+function ui.action_bar_from_catalog(id, catalog, opts)
+  opts = opts or {}
+  local actions = {}
+  for index, item in ipairs(catalog or {}) do
+    local action_id = item.id or item.action
+    if action_id then
+      local confirmation = item.confirmation
+      local blocked = item.available == false
+      ui.push(actions, {
+        id = action_id,
+        label = item.label or item.title or action_id,
+        description = item.description,
+        shortcut = item.shortcut,
+        input_schema = item.input_schema,
+        needs_input = item.requires_input == true,
+        confirm = confirmation == "required" or confirmation == "destructive",
+        danger = confirmation == "destructive" or item.effect == "external",
+        disabled = blocked,
+        disabled_reason = item.reason,
+        source = item.provider,
+        action = item.action or { action = action_id, payload = item.payload or {} },
+        priority = item.priority or index,
+      })
+      if item.separator_after then
+        ui.push(actions, { separator = true })
+      end
+    end
+  end
+  local bar_opts = ui.copy(opts)
+  bar_opts.label = bar_opts.label or "Actions"
+  return ui.action_bar(id, actions, bar_opts)
 end
 
 --- A named extension point. Recipes may replace the fallback at this name.
