@@ -121,3 +121,20 @@ tools/chart_animate.sh
 It writes `line`, `scatter`, `heatmap`, `dense`, and `candle` scenes under
 `/tmp/fungos-chart-demo`, then `soil-scene-gpu --watch` republishes each frame.
 No TypeScript runtime is involved.
+
+The GPU producer now accepts host input over the same `ui.sock` connection:
+
+```text
+pointer press / move / release / leave
+scroll x y dx dy
+```
+
+`tools/chart_live.lua` applies those events to the chart domain:
+
+- drag to pan
+- wheel to zoom around the pointer
+- move for the crosshair
+- leave clears the crosshair
+
+Chart input is still data the producer owns. Canvas owns the hit test, window
+geometry and normalized coordinates; the producer never gets a window handle.

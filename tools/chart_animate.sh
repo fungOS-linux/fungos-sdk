@@ -62,6 +62,7 @@ fi
 for name in line scatter heatmap dense candle; do
   "$GPU" --scene "$OUT/live-$name.json" --canvas-socket "$SOCKET" \
     --source-id "live-$name" --size 900x520 --watch --fps "$FPS" \
+    --input-out "$OUT/live-$name.input" \
     >>"$OUT/live-$name.log" 2>&1 &
   pids="$pids $!"
   echo $! >> "$OUT/animate.pids"

@@ -4,7 +4,9 @@
 --   lua tools/chart_live.lua --out /tmp/fungos-chart-demo --fps 30
 --
 -- Writes one scene per chart into --out. `soil-scene-gpu --watch` renders each
--- file and publishes new frames to Canvas at the requested frame rate.
+-- file and publishes new frames to Canvas at the requested frame rate. Pointer
+-- and scroll events written by the GPU producer are drained from
+-- `live-<name>.input`; drag pans, wheel zooms, and move drives the crosshair.
 
 local function script_dir()
   local source = debug.getinfo(1, "S").source:sub(2)
@@ -86,6 +88,142 @@ local function wave(x, t, phase)
     + math.cos(x * 0.061 - t * 0.4 + phase) * 7
 end
 
+local states = {}
+
+local function state(name)
+  states[name] = states[name] or {
+    processed = 0,
+    zoomx = 1, zoomy = 1,
+    panx = 0, pany = 0,
+    pointer = nil,
+    dragging = false,
+    lastx = 0, lasty = 0,
+  }
+  return states[name]
+end
+
+local function number_field(line, key)
+  return tonumber(line:match('"' .. key .. '"%s*:%s*([%-%d%.eE]+)'))
+end
+
+local function string_field(line, key)
+  return line:match('"' .. key .. '"%s*:%s*"([^"]+)"')
+end
+
+local function clamp(value, lo, hi)
+  return math.max(lo, math.min(hi, value))
+end
+
+local function apply_input(s, line, bounds)
+  local kind = string_field(line, "kind")
+  if kind == "pointer" then
+    local phase = string_field(line, "phase")
+    local x, y = number_field(line, "x"), number_field(line, "y")
+    if not x or not y then return end
+    if phase == "leave" then
+      s.pointer = nil
+      s.dragging = false
+    elseif phase == "press" then
+      s.pointer = { x = x, y = y }
+      s.dragging = true
+      s.lastx, s.lasty = x, y
+    elseif phase == "release" then
+      s.pointer = { x = x, y = y }
+      s.dragging = false
+    elseif phase == "move" then
+      s.pointer = { x = x, y = y }
+      if s.dragging then
+        s.panx = s.panx - (x - s.lastx)
+        s.pany = s.pany + (y - s.lasty)
+        s.lastx, s.lasty = x, y
+      end
+    end
+  elseif kind == "scroll" then
+    local x, y = number_field(line, "x") or 0.5, number_field(line, "y") or 0.5
+    local dy = number_field(line, "dy") or 0
+    local xlo, xhi, ylo, yhi = bounds[1], bounds[2], bounds[3], bounds[4]
+    local factor = math.exp(-dy * 0.002)
+    local old_sx = (xhi - xlo) / s.zoomx
+    local old_cx = (xlo + xhi) / 2 + s.panx * old_sx
+    local pointer_x = old_cx + (x - 0.5) * old_sx
+    local new_zoom_x = clamp(s.zoomx * factor, 0.2, 24)
+    local new_sx = (xhi - xlo) / new_zoom_x
+    local new_cx = pointer_x - (x - 0.5) * new_sx
+    s.zoomx = new_zoom_x
+    s.panx = (new_cx - (xlo + xhi) / 2) / new_sx
+
+    local old_sy = (yhi - ylo) / s.zoomy
+    local old_cy = (ylo + yhi) / 2 + s.pany * old_sy
+    local pointer_y = old_cy + (0.5 - y) * old_sy
+    local new_zoom_y = clamp(s.zoomy * factor, 0.2, 24)
+    local new_sy = (yhi - ylo) / new_zoom_y
+    local new_cy = pointer_y - (0.5 - y) * new_sy
+    s.zoomy = new_zoom_y
+    s.pany = (new_cy - (ylo + yhi) / 2) / new_sy
+  end
+end
+
+local function drain_inputs(name, bounds)
+  local s = state(name)
+  local path = options.out .. "/live-" .. name .. ".input"
+  local file = io.open(path, "rb")
+  if not file then return end
+  local text = file:read("*a") or ""
+  file:close()
+  local lines = {}
+  for line in text:gmatch("[^\n]+") do lines[#lines + 1] = line end
+  if #lines < s.processed then s.processed = 0 end
+  for index = s.processed + 1, #lines do
+    apply_input(s, lines[index], bounds)
+  end
+  s.processed = #lines
+end
+
+local function view(name, xlo, xhi, ylo, yhi)
+  if xhi <= xlo then xhi = xlo + 1 end
+  if yhi <= ylo then yhi = ylo + 1 end
+  drain_inputs(name, { xlo = xlo, xhi = xhi, ylo = ylo, yhi = yhi })
+  local s = state(name)
+  local sx = (xhi - xlo) / s.zoomx
+  local sy = (yhi - ylo) / s.zoomy
+  local cx = (xlo + xhi) / 2 + s.panx * sx
+  local cy = (ylo + yhi) / 2 + s.pany * sy
+  local xdom = { min = cx - sx / 2, max = cx + sx / 2 }
+  local ydom = { min = cy - sy / 2, max = cy + sy / 2 }
+  local crosshair
+  if s.pointer then
+    crosshair = {
+      x = xdom.min + s.pointer.x * (xdom.max - xdom.min),
+      y = ydom.max - s.pointer.y * (ydom.max - ydom.min),
+    }
+  end
+  return xdom, ydom, crosshair
+end
+
+local function scene_options(name, title, subtitle, bounds, crosshair)
+  local x, y, cross = view(name, bounds[1], bounds[2], bounds[3], bounds[4])
+  return {
+    title = title,
+    subtitle = subtitle,
+    width = options.width,
+    height = options.height,
+    x = x,
+    y = y,
+    crosshair = crosshair or cross,
+  }
+end
+
+local function points_bounds(series)
+  local xlo, xhi, ylo, yhi = math.huge, -math.huge, math.huge, -math.huge
+  for _, points in ipairs(series) do
+    for _, point in ipairs(points) do
+      xlo, xhi = math.min(xlo, point[1]), math.max(xhi, point[1])
+      ylo, yhi = math.min(ylo, point[2]), math.max(yhi, point[2])
+    end
+  end
+  return { xlo, xhi, ylo, yhi }
+end
+
 local function line_scene(t)
   local p50, p95 = {}, {}
   for index = 0, 239 do
@@ -93,17 +231,15 @@ local function line_scene(t)
     p50[#p50 + 1] = { x, wave(x, t, 0) }
     p95[#p95 + 1] = { x, wave(x, t, 1.7) + 22 + math.sin(x * 0.4 + t) * 5 }
   end
-  local c = chart.new {
-    title = "Live line",
-    subtitle = "rolling sin data · crosshair + annotation",
-    width = options.width,
-    height = options.height,
-    max_points = 240,
-    crosshair = { x = t * 4, y = wave(t * 4, t, 0) },
-    annotations = {
-      { x = t * 4, y = wave(t * 4, t, 0) + 24, label = "p50 live", ink = "warning" },
-    },
-  }
+  local c = chart.new(scene_options("line", "Live line",
+    "drag to pan · scroll to zoom · move for crosshair",
+    points_bounds({ p50, p95 })))
+  local cross = c.opts.crosshair
+  if cross then
+    c.opts.annotations = {
+      { x = cross.x, y = cross.y + 24, label = "p50 live", ink = "warning" },
+    }
+  end
   c:area { id = "p95", label = "p95", ink = "primary", fill_opacity = 0.10, points = p95, width = 2 }
   c:line { id = "p50", label = "p50", ink = "success", points = p50, width = 2 }
   return c:present()
@@ -111,18 +247,21 @@ end
 
 local function scatter_scene(t)
   local points = {}
+  local xlo, xhi, ylo, yhi = math.huge, -math.huge, math.huge, -math.huge
   for index = 1, 700 do
     local x = (index / 700) * 60
     local noise = math.sin(index * 12.9898 + t * 0.7) * 43758.5453
     noise = noise - math.floor(noise)
-    points[#points + 1] = { x, 50 + math.sin(x * 0.33 + t) * 20 + (noise - 0.5) * 14 }
+    local y = 50 + math.sin(x * 0.33 + t) * 20 + (noise - 0.5) * 14
+    points[#points + 1] = { x, y }
+    xlo, xhi = math.min(xlo, x), math.max(xhi, x)
+    ylo, yhi = math.min(ylo, y), math.max(yhi, y)
   end
-  return chart.new {
-    title = "Live scatter",
-    subtitle = "700 points · one GPU points primitive",
-    width = options.width,
-    height = options.height,
-  }:scatter { id = "cloud", label = "cloud", ink = "info", size = 4, opacity = 0.72, points = points }:present()
+  local opts = scene_options("scatter", "Live scatter",
+    "drag to pan · scroll to zoom · crosshair", { xlo, xhi, ylo, yhi })
+  return chart.new(opts):scatter {
+    id = "cloud", label = "cloud", ink = "info", size = 4, opacity = 0.72, points = points,
+  }:present()
 end
 
 local function heatmap_scene(t)
@@ -135,33 +274,34 @@ local function heatmap_scene(t)
         + 0.5 * math.sin((x + y) * 10 + t)
     end
   end
-  return chart.new {
-    title = "Live heatmap",
-    subtitle = "24 x 48 scalar field · GPU heat ramp",
-    width = options.width,
-    height = options.height,
-  }:heatmap { id = "field", rows = rows, cols = cols, values = values }:present()
+  local opts = scene_options("heatmap", "Live heatmap",
+    "drag to pan · scroll to zoom · GPU heat ramp", { 0, cols - 1, 0, rows - 1 })
+  return chart.new(opts):heatmap { id = "field", rows = rows, cols = cols, values = values }:present()
 end
 
 local function dense_scene(t)
   local points = {}
+  local xlo, xhi, ylo, yhi = math.huge, -math.huge, math.huge, -math.huge
   for index = 0, 1999 do
-    local x = index / 1999 * 120
+    local x = index / 1999 * 120 + t * 3
     local spike = (index % 911 == 0) and 16 or 0
-    points[#points + 1] = { x + t * 3, 50 + math.sin(x * 0.25 + t) * 14 + spike }
+    local y = 50 + math.sin(x * 0.25 + t) * 14 + spike
+    points[#points + 1] = { x, y }
+    xlo, xhi = math.min(xlo, x), math.max(xhi, x)
+    ylo, yhi = math.min(ylo, y), math.max(yhi, y)
   end
-  return chart.new {
-    title = "Live dense",
-    subtitle = "2,000 samples · LTTB to 900",
-    width = options.width,
-    height = options.height,
-    max_points = 900,
-  }:area { id = "dense", label = "dense", ink = "warning", fill_opacity = 0.10, points = points, width = 2 }:present()
+  local opts = scene_options("dense", "Live dense",
+    "2,000 samples · LTTB · drag to pan", { xlo, xhi, ylo, yhi })
+  opts.max_points = 900
+  return chart.new(opts):area {
+    id = "dense", label = "dense", ink = "warning", fill_opacity = 0.10, points = points, width = 2,
+  }:present()
 end
 
 local function candle_scene(t)
   local candles = {}
   local price = 100
+  local ylo, yhi = math.huge, -math.huge
   for index = 1, 80 do
     local x = index
     local open = price
@@ -169,16 +309,16 @@ local function candle_scene(t)
     local high = math.max(open, close) + 1 + math.abs(math.sin(x * 0.9 + t)) * 2
     local low = math.min(open, close) - 1 - math.abs(math.cos(x * 1.1 + t)) * 2
     candles[#candles + 1] = { x = x, open = open, high = high, low = low, close = close }
+    ylo, yhi = math.min(ylo, low), math.max(yhi, high)
     price = close
   end
   local last = candles[#candles]
-  return chart.new {
-    title = "Live candles",
-    subtitle = "OHLC · native candle primitive",
-    width = options.width,
-    height = options.height,
-    crosshair = { x = last.x, y = last.close },
-  }:candles { id = "ohlc", label = "OHLC", up_ink = "success", down_ink = "danger", candles = candles }:present()
+  local opts = scene_options("candle", "Live candles",
+    "OHLC · drag to pan · scroll to zoom", { 1, #candles, ylo, yhi },
+    { x = last.x, y = last.close })
+  return chart.new(opts):candles {
+    id = "ohlc", label = "OHLC", up_ink = "success", down_ink = "danger", candles = candles,
+  }:present()
 end
 
 local scenes = {
@@ -188,6 +328,10 @@ local scenes = {
   dense = dense_scene,
   candle = candle_scene,
 }
+
+for name in pairs(scenes) do
+  os.remove(options.out .. "/live-" .. name .. ".input")
+end
 
 local frame = 0
 while true do
