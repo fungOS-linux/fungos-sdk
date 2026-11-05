@@ -850,6 +850,23 @@ function ui.scene_surface(width, height, theme)
     }
   end
 
+  function surface:area(id, points, baseline, ink, opacity)
+    local out = {}
+    for _, point in ipairs(points or {}) do
+      out[#out + 1] = { self:nx(point[1]), self:ny(point[2]) }
+    end
+    if #out < 2 then return end
+    self.scene.nodes[#self.scene.nodes + 1] = {
+      id = self:unique(id),
+      transform = { translation = { 0, 0, self.z }, scale = { 1, 1, 1 } },
+      type = "area",
+      points = out,
+      baseline = self:ny(baseline),
+      ink = ink or "primary",
+      opacity = opacity == nil and 0.18 or opacity,
+    }
+  end
+
   function surface:find(laid, id)
     return ui.find(laid, id)
   end
@@ -958,6 +975,21 @@ function ui.surface(width, height, theme)
     for index = 2, #(points or {}) do
       local previous, point = points[index - 1], points[index]
       self:line(id .. "-" .. index, previous[1], previous[2], point[1], point[2], width, ink, opacity)
+    end
+  end
+
+  function surface:area(id, points, baseline, ink, opacity)
+    for index = 2, #(points or {}) do
+      local a, b = points[index - 1], points[index]
+      local dx = b[1] - a[1]
+      local steps = math.max(1, math.ceil(math.abs(dx)))
+      for step = 0, steps do
+        local t = step / steps
+        local x = a[1] + dx * t
+        local y = a[2] + (b[2] - a[2]) * t
+        self:rect(id .. "-" .. index .. "-" .. step, x, math.min(y, baseline), 1,
+          math.max(1, math.abs(baseline - y)), ink or "primary", opacity == nil and 0.18 or opacity, 0)
+      end
     end
   end
 

@@ -18,13 +18,15 @@ function M.render(snapshot)
     y = { label = "ms" },
   }
   for _, series in ipairs(snapshot.series or {}) do
-    c:line {
+    local method = series.kind == "area" and c.area or c.line
+    method(c, {
       id = series.id,
       label = series.label,
       ink = series.ink,
       points = series.points,
-      width = 2,
-    }
+      width = series.width or 2,
+      fill_opacity = series.fill_opacity,
+    })
   end
   c:render()
 end
@@ -37,7 +39,8 @@ function M.present(snapshot)
     height = 520,
   }
   for _, series in ipairs((snapshot or {}).series or {}) do
-    c:line { id = series.id, label = series.label, ink = series.ink, points = series.points, width = 2 }
+    local method = series.kind == "area" and c.area or c.line
+    method(c, { id = series.id, label = series.label, ink = series.ink, points = series.points, width = series.width or 2, fill_opacity = series.fill_opacity })
   end
   return c:present()
 end

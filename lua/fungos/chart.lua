@@ -87,6 +87,18 @@ function methods:line(opts)
   return self
 end
 
+--- Add a filled area series. The line is drawn over the fill by render().
+function methods:area(opts)
+  opts = copy(opts or {})
+  opts.kind = "area"
+  opts.ink = opts.ink or "primary"
+  opts.width = opts.width or 2
+  opts.fill_opacity = opts.fill_opacity or 0.16
+  opts.points = series_points(opts)
+  self.series[#self.series + 1] = opts
+  return self
+end
+
 --- Add a scatter series.
 function methods:scatter(opts)
   opts = copy(opts or {})
@@ -240,13 +252,16 @@ function methods:render(surface)
 
   for index, item in ipairs(self.series) do
     local key = item.id or ("series-" .. index)
-    if item.kind == "line" then
+    if item.kind == "line" or item.kind == "area" then
       local screen = {}
       for _, point in ipairs(item.points) do
         local x, y = sx(point.x), sy(point.y)
         if x >= left - 1 and x <= left + plot_w + 1 then
           screen[#screen + 1] = { x, y }
         end
+      end
+      if item.kind == "area" and surface.area then
+        surface:area(key .. "-fill", screen, sy(math.min(0, ylo)), item.ink, item.fill_opacity)
       end
       if surface.polyline then
         surface:polyline(key, screen, item.width, item.ink, 1.0)

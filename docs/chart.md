@@ -42,6 +42,7 @@ local present = c:present()  -- portable soil_scene document
 | Method | Shape |
 | --- | --- |
 | `c:line(opts)` | `points = { {x,y}, ... }`, `ink`, `width`, `label` |
+| `c:area(opts)` | line points plus `fill_opacity`; fill drops to zero |
 | `c:scatter(opts)` | `points`, `size`, `ink`, `label` |
 | `c:bar(opts)` | `values = { number, ... }`, `labels`, `ink` |
 | `c:heatmap(opts)` | `rows`, `cols`, row-major `values`, optional `ink` |
@@ -73,6 +74,6 @@ end
 ```
 
 Line series emit a single `polyline` scene node per series, so the GPU renderer
-draws them as triangle strips instead of thousands of one-pixel rects. Version
-one has butt joins and no area fill; the same `c:line` API is the place a native
-miter/area/decimation pipeline will land.
+draws them as triangle strips instead of thousands of one-pixel rects. Area
+series add a single `area` node and fill to zero; the same API is the place a
+native miter/decimation pipeline will land.
