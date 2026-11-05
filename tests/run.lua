@@ -162,6 +162,32 @@ ok(catalog_types.rect, "crosshair and annotations use ordinary scene primitives"
 local windowed = chart.window({ { 1 }, { 2 }, { 3 }, { 4 } }, 2)
 ok(#windowed == 2 and windowed[1][1] == 3 and windowed[2][1] == 4, "window keeps the newest points")
 
+-- Chart navigator is pure viewport math: host input in, data domains out.
+local nav = chart.navigator():set_bounds(0, 100, 0, 50)
+local xdom, ydom = nav:view()
+ok(xdom.min == 0 and xdom.max == 100, "navigator starts at full x bounds")
+nav:feed { kind = "scroll", x = 0.5, y = 0.5, dy = -200 }
+xdom, ydom = nav:view()
+ok(xdom.max - xdom.min < 100, "wheel zooms in")
+nav:feed { kind = "key", key = "r" }
+xdom = nav:view()
+ok(math.abs((xdom.max - xdom.min) - 100) < 0.001, "r resets zoom")
+nav:feed { kind = "pointer", phase = "press", x = 0.2, y = 0.2, shift = true, at_ms = 10 }
+nav:feed { kind = "pointer", phase = "move", x = 0.6, y = 0.6, shift = true, at_ms = 20 }
+nav:feed { kind = "pointer", phase = "release", x = 0.6, y = 0.6, shift = true, at_ms = 30 }
+xdom, ydom = nav:view()
+ok(xdom.max - xdom.min < 60, "shift-drag zooms to the selected x range")
+ok(ydom.max - ydom.min < 50, "shift-drag zooms to the selected y range")
+nav:feed { kind = "pointer", phase = "press", x = 0.5, y = 0.5, at_ms = 1000 }
+nav:feed { kind = "pointer", phase = "press", x = 0.5, y = 0.5, at_ms = 1200 }
+xdom = nav:view()
+ok(math.abs((xdom.max - xdom.min) - 100) < 0.001, "double press resets the view")
+nav:feed { kind = "pointer", phase = "press", x = 0.5, y = 0.5, at_ms = 2000 }
+nav:feed { kind = "pointer", phase = "move", x = 0.7, y = 0.5, at_ms = 2010 }
+nav:feed { kind = "pointer", phase = "release", x = 0.7, y = 0.5, at_ms = 2020 }
+xdom = nav:view()
+ok(math.abs((xdom.max - xdom.min) - 100) < 0.001, "plain drag pans without changing span")
+
 -- A view that calls ui.surface can be captured as a portable soil_scene
 -- payload without calling canvas.rect/text or widget.hit.
 _G.canvas = {

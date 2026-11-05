@@ -88,18 +88,11 @@ local function wave(x, t, phase)
     + math.cos(x * 0.061 - t * 0.4 + phase) * 7
 end
 
-local states = {}
+local navigators = {}
 
-local function state(name)
-  states[name] = states[name] or {
-    processed = 0,
-    zoomx = 1, zoomy = 1,
-    panx = 0, pany = 0,
-    pointer = nil,
-    dragging = false,
-    lastx = 0, lasty = 0,
-  }
-  return states[name]
+local function navigator(name)
+  navigators[name] = navigators[name] or chart.navigator()
+  return navigators[name]
 end
 
 local function number_field(line, key)
@@ -110,61 +103,28 @@ local function string_field(line, key)
   return line:match('"' .. key .. '"%s*:%s*"([^"]+)"')
 end
 
-local function clamp(value, lo, hi)
-  return math.max(lo, math.min(hi, value))
+local function bool_field(line, key)
+  return line:match('"' .. key .. '"%s*:%s*(%a+)') == "true"
 end
 
-local function apply_input(s, line, bounds)
-  local kind = string_field(line, "kind")
-  if kind == "pointer" then
-    local phase = string_field(line, "phase")
-    local x, y = number_field(line, "x"), number_field(line, "y")
-    if not x or not y then return end
-    if phase == "leave" then
-      s.pointer = nil
-      s.dragging = false
-    elseif phase == "press" then
-      s.pointer = { x = x, y = y }
-      s.dragging = true
-      s.lastx, s.lasty = x, y
-    elseif phase == "release" then
-      s.pointer = { x = x, y = y }
-      s.dragging = false
-    elseif phase == "move" then
-      s.pointer = { x = x, y = y }
-      if s.dragging then
-        s.panx = s.panx - (x - s.lastx)
-        s.pany = s.pany + (y - s.lasty)
-        s.lastx, s.lasty = x, y
-      end
-    end
-  elseif kind == "scroll" then
-    local x, y = number_field(line, "x") or 0.5, number_field(line, "y") or 0.5
-    local dy = number_field(line, "dy") or 0
-    local xlo, xhi, ylo, yhi = bounds[1], bounds[2], bounds[3], bounds[4]
-    local factor = math.exp(-dy * 0.002)
-    local old_sx = (xhi - xlo) / s.zoomx
-    local old_cx = (xlo + xhi) / 2 + s.panx * old_sx
-    local pointer_x = old_cx + (x - 0.5) * old_sx
-    local new_zoom_x = clamp(s.zoomx * factor, 0.2, 24)
-    local new_sx = (xhi - xlo) / new_zoom_x
-    local new_cx = pointer_x - (x - 0.5) * new_sx
-    s.zoomx = new_zoom_x
-    s.panx = (new_cx - (xlo + xhi) / 2) / new_sx
-
-    local old_sy = (yhi - ylo) / s.zoomy
-    local old_cy = (ylo + yhi) / 2 + s.pany * old_sy
-    local pointer_y = old_cy + (0.5 - y) * old_sy
-    local new_zoom_y = clamp(s.zoomy * factor, 0.2, 24)
-    local new_sy = (yhi - ylo) / new_zoom_y
-    local new_cy = pointer_y - (0.5 - y) * new_sy
-    s.zoomy = new_zoom_y
-    s.pany = (new_cy - (ylo + yhi) / 2) / new_sy
-  end
+local function parse_event(line)
+  return {
+    kind = string_field(line, "kind"),
+    phase = string_field(line, "phase"),
+    key = string_field(line, "key"),
+    x = number_field(line, "x"),
+    y = number_field(line, "y"),
+    dx = number_field(line, "dx"),
+    dy = number_field(line, "dy"),
+    at_ms = number_field(line, "at_ms"),
+    shift = bool_field(line, "shift"),
+  }
 end
 
 local function drain_inputs(name, bounds)
-  local s = state(name)
+  local nav = navigator(name)
+  nav:set_bounds(bounds[1], bounds[2], bounds[3], bounds[4])
+  local s = navigators[name]
   local path = options.out .. "/live-" .. name .. ".input"
   local file = io.open(path, "rb")
   if not file then return end
@@ -172,36 +132,20 @@ local function drain_inputs(name, bounds)
   file:close()
   local lines = {}
   for line in text:gmatch("[^\n]+") do lines[#lines + 1] = line end
-  if #lines < s.processed then s.processed = 0 end
-  for index = s.processed + 1, #lines do
-    apply_input(s, lines[index], bounds)
+  if #lines < (s.processed or 0) then s.processed = 0 end
+  for index = (s.processed or 0) + 1, #lines do
+    nav:feed(parse_event(lines[index]))
   end
   s.processed = #lines
 end
 
 local function view(name, xlo, xhi, ylo, yhi)
-  if xhi <= xlo then xhi = xlo + 1 end
-  if yhi <= ylo then yhi = ylo + 1 end
-  drain_inputs(name, { xlo = xlo, xhi = xhi, ylo = ylo, yhi = yhi })
-  local s = state(name)
-  local sx = (xhi - xlo) / s.zoomx
-  local sy = (yhi - ylo) / s.zoomy
-  local cx = (xlo + xhi) / 2 + s.panx * sx
-  local cy = (ylo + yhi) / 2 + s.pany * sy
-  local xdom = { min = cx - sx / 2, max = cx + sx / 2 }
-  local ydom = { min = cy - sy / 2, max = cy + sy / 2 }
-  local crosshair
-  if s.pointer then
-    crosshair = {
-      x = xdom.min + s.pointer.x * (xdom.max - xdom.min),
-      y = ydom.max - s.pointer.y * (ydom.max - ydom.min),
-    }
-  end
-  return xdom, ydom, crosshair
+  drain_inputs(name, { xlo, xhi, ylo, yhi })
+  return navigator(name):view()
 end
 
 local function scene_options(name, title, subtitle, bounds, crosshair)
-  local x, y, cross = view(name, bounds[1], bounds[2], bounds[3], bounds[4])
+  local x, y, cross, selection = view(name, bounds[1], bounds[2], bounds[3], bounds[4])
   return {
     title = title,
     subtitle = subtitle,
@@ -210,6 +154,7 @@ local function scene_options(name, title, subtitle, bounds, crosshair)
     x = x,
     y = y,
     crosshair = crosshair or cross,
+    selection = selection,
   }
 end
 
@@ -232,7 +177,7 @@ local function line_scene(t)
     p95[#p95 + 1] = { x, wave(x, t, 1.7) + 22 + math.sin(x * 0.4 + t) * 5 }
   end
   local c = chart.new(scene_options("line", "Live line",
-    "drag to pan · scroll to zoom · move for crosshair",
+    "drag pan · wheel zoom · shift-drag range · double-click reset",
     points_bounds({ p50, p95 })))
   local cross = c.opts.crosshair
   if cross then
@@ -258,7 +203,7 @@ local function scatter_scene(t)
     ylo, yhi = math.min(ylo, y), math.max(yhi, y)
   end
   local opts = scene_options("scatter", "Live scatter",
-    "drag to pan · scroll to zoom · crosshair", { xlo, xhi, ylo, yhi })
+    "drag pan · wheel zoom · shift-drag range", { xlo, xhi, ylo, yhi })
   return chart.new(opts):scatter {
     id = "cloud", label = "cloud", ink = "info", size = 4, opacity = 0.72, points = points,
   }:present()
@@ -275,7 +220,7 @@ local function heatmap_scene(t)
     end
   end
   local opts = scene_options("heatmap", "Live heatmap",
-    "drag to pan · scroll to zoom · GPU heat ramp", { 0, cols - 1, 0, rows - 1 })
+    "drag pan · wheel zoom · shift-drag range · GPU heat ramp", { 0, cols - 1, 0, rows - 1 })
   return chart.new(opts):heatmap { id = "field", rows = rows, cols = cols, values = values }:present()
 end
 
@@ -291,7 +236,7 @@ local function dense_scene(t)
     ylo, yhi = math.min(ylo, y), math.max(yhi, y)
   end
   local opts = scene_options("dense", "Live dense",
-    "2,000 samples · LTTB · drag to pan", { xlo, xhi, ylo, yhi })
+    "2,000 samples · LTTB · drag pan · wheel zoom", { xlo, xhi, ylo, yhi })
   opts.max_points = 900
   return chart.new(opts):area {
     id = "dense", label = "dense", ink = "warning", fill_opacity = 0.10, points = points, width = 2,
@@ -314,7 +259,7 @@ local function candle_scene(t)
   end
   local last = candles[#candles]
   local opts = scene_options("candle", "Live candles",
-    "OHLC · drag to pan · scroll to zoom", { 1, #candles, ylo, yhi },
+    "OHLC · drag pan · wheel zoom · double-click reset", { 1, #candles, ylo, yhi },
     { x = last.x, y = last.close })
   return chart.new(opts):candles {
     id = "ohlc", label = "OHLC", up_ink = "success", down_ink = "danger", candles = candles,

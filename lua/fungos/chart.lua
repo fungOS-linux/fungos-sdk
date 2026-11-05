@@ -198,6 +198,206 @@ function methods:candles(opts)
   return self
 end
 
+local function nav_clamp(value, lo, hi)
+  return math.max(lo, math.min(hi, value))
+end
+
+--- A pure chart viewport navigator.
+--
+-- The host supplies `pointer`, `scroll` and `key` events. The navigator owns
+-- zoom/pan/selection math and returns data domains; it never reads a clock,
+-- a socket, or a host API. Double-click resets, Shift-drag selects a range,
+-- wheel zooms around the pointer, and `r`/`+`/`-` work when a host routes keys.
+function chart.navigator(opts)
+  opts = opts or {}
+  local nav = {
+    zoom_x = 1,
+    zoom_y = 1,
+    pan_x = 0,
+    pan_y = 0,
+    bounds = { 0, 1, 0, 1 },
+    pointer = nil,
+    dragging = false,
+    selecting = false,
+    sel_start = nil,
+    sel_end = nil,
+    last_press_at = nil,
+    last_press_x = nil,
+    last_press_y = nil,
+    reset_zoom = opts.reset_zoom or 1,
+    min_zoom = opts.min_zoom or 0.2,
+    max_zoom = opts.max_zoom or 24,
+  }
+  function nav:set_bounds(xlo, xhi, ylo, yhi)
+    if type(xlo) == "table" then
+      xlo, xhi, ylo, yhi = xlo[1] or xlo.xlo, xlo[2] or xlo.xhi, xlo[3] or xlo.ylo, xlo[4] or xlo.yhi
+    end
+    if not xhi or xhi <= xlo then xhi = xlo + 1 end
+    if not yhi or yhi <= ylo then yhi = ylo + 1 end
+    self.bounds = { xlo, xhi, ylo, yhi }
+    return self
+  end
+
+  function nav:reset()
+    self.zoom_x, self.zoom_y = self.reset_zoom, self.reset_zoom
+    self.pan_x, self.pan_y = 0, 0
+    self.selecting = false
+    self.sel_start, self.sel_end = nil, nil
+    return self
+  end
+
+  function nav:zoom(factor, anchor_x, anchor_y)
+    local xlo, xhi, ylo, yhi = table.unpack(self.bounds)
+    anchor_x = anchor_x or 0.5
+    anchor_y = anchor_y or 0.5
+    local old_sx = (xhi - xlo) / self.zoom_x
+    local old_cx = (xlo + xhi) / 2 + self.pan_x * old_sx
+    local pointer_x = old_cx + (anchor_x - 0.5) * old_sx
+    local new_zoom_x = nav_clamp(self.zoom_x * factor, self.min_zoom, self.max_zoom)
+    local new_sx = (xhi - xlo) / new_zoom_x
+    local new_cx = pointer_x - (anchor_x - 0.5) * new_sx
+    self.zoom_x = new_zoom_x
+    self.pan_x = (new_cx - (xlo + xhi) / 2) / new_sx
+
+    local old_sy = (yhi - ylo) / self.zoom_y
+    local old_cy = (ylo + yhi) / 2 + self.pan_y * old_sy
+    local pointer_y = old_cy + (0.5 - anchor_y) * old_sy
+    local new_zoom_y = nav_clamp(self.zoom_y * factor, self.min_zoom, self.max_zoom)
+    local new_sy = (yhi - ylo) / new_zoom_y
+    local new_cy = pointer_y - (0.5 - anchor_y) * new_sy
+    self.zoom_y = new_zoom_y
+    self.pan_y = (new_cy - (ylo + yhi) / 2) / new_sy
+    return self
+  end
+
+  function nav:view()
+    local xlo, xhi, ylo, yhi = table.unpack(self.bounds)
+    local sx = (xhi - xlo) / self.zoom_x
+    local sy = (yhi - ylo) / self.zoom_y
+    local cx = (xlo + xhi) / 2 + self.pan_x * sx
+    local cy = (ylo + yhi) / 2 + self.pan_y * sy
+    local xdom = { min = cx - sx / 2, max = cx + sx / 2 }
+    local ydom = { min = cy - sy / 2, max = cy + sy / 2 }
+    local crosshair
+    if self.pointer then
+      crosshair = {
+        x = xdom.min + self.pointer.x * (xdom.max - xdom.min),
+        y = ydom.max - self.pointer.y * (ydom.max - ydom.min),
+      }
+    end
+    local selection
+    if self.sel_start and self.sel_end then
+      local x0 = xdom.min + math.min(self.sel_start.x, self.sel_end.x) * (xdom.max - xdom.min)
+      local x1 = xdom.min + math.max(self.sel_start.x, self.sel_end.x) * (xdom.max - xdom.min)
+      local y0 = ydom.max - math.max(self.sel_start.y, self.sel_end.y) * (ydom.max - ydom.min)
+      local y1 = ydom.max - math.min(self.sel_start.y, self.sel_end.y) * (ydom.max - ydom.min)
+      selection = { x0 = x0, x1 = x1, y0 = y0, y1 = y1 }
+    end
+    return xdom, ydom, crosshair, selection
+  end
+
+  function nav:apply_selection()
+    if not self.sel_start or not self.sel_end then return self end
+    local dx = math.abs(self.sel_end.x - self.sel_start.x)
+    local dy = math.abs(self.sel_end.y - self.sel_start.y)
+    if dx < 0.015 and dy < 0.015 then return self end
+    local xdom, ydom = self:view()
+    local xlo, xhi, ylo, yhi = table.unpack(self.bounds)
+    if dx >= 0.015 then
+      local x0 = xdom.min + math.min(self.sel_start.x, self.sel_end.x) * (xdom.max - xdom.min)
+      local x1 = xdom.min + math.max(self.sel_start.x, self.sel_end.x) * (xdom.max - xdom.min)
+      local span = math.max(0.000001, x1 - x0)
+      self.zoom_x = nav_clamp((xhi - xlo) / span, self.min_zoom, self.max_zoom)
+      self.pan_x = (((x0 + x1) / 2) - (xlo + xhi) / 2) / span
+    end
+    if dy >= 0.015 then
+      local y0 = ydom.max - math.max(self.sel_start.y, self.sel_end.y) * (ydom.max - ydom.min)
+      local y1 = ydom.max - math.min(self.sel_start.y, self.sel_end.y) * (ydom.max - ydom.min)
+      local span = math.max(0.000001, y1 - y0)
+      self.zoom_y = nav_clamp((yhi - ylo) / span, self.min_zoom, self.max_zoom)
+      self.pan_y = (((y0 + y1) / 2) - (ylo + yhi) / 2) / span
+    end
+    self.selecting = false
+    self.sel_start, self.sel_end = nil, nil
+    return self
+  end
+
+  function nav:feed(event)
+    if type(event) ~= "table" then return self end
+    local kind = event.kind
+    if kind == "pointer" then
+      local x, y = tonumber(event.x), tonumber(event.y)
+      if not x or not y then return self end
+      self.pointer = { x = x, y = y }
+      if event.phase == "leave" then
+        self.pointer = nil
+        self.dragging = false
+        self.selecting = false
+      elseif event.phase == "press" then
+        local at = tonumber(event.at_ms)
+        if at and self.last_press_at and at - self.last_press_at <= 350
+          and math.abs(x - (self.last_press_x or -1)) <= 0.03
+          and math.abs(y - (self.last_press_y or -1)) <= 0.03 then
+          self:reset()
+          self.last_press_at = nil
+          self.dragging = false
+          self.selecting = false
+          return self
+        end
+        self.last_press_at, self.last_press_x, self.last_press_y = at, x, y
+        if event.shift then
+          self.selecting = true
+          self.dragging = false
+          self.sel_start = { x = x, y = y }
+          self.sel_end = { x = x, y = y }
+        else
+          self.dragging = true
+          self.selecting = false
+          self.sel_start, self.sel_end = nil, nil
+          self.last_x, self.last_y = x, y
+        end
+      elseif event.phase == "move" then
+        if self.selecting then
+          self.sel_end = { x = x, y = y }
+        elseif self.dragging then
+          self.pan_x = self.pan_x - (x - (self.last_x or x))
+          self.pan_y = self.pan_y + (y - (self.last_y or y))
+          self.last_x, self.last_y = x, y
+        end
+      elseif event.phase == "release" then
+        if self.selecting then self:apply_selection() end
+        self.dragging = false
+      end
+    elseif kind == "scroll" then
+      local x, y = tonumber(event.x) or 0.5, tonumber(event.y) or 0.5
+      local dy = tonumber(event.dy) or 0
+      self:zoom(math.exp(-dy * 0.002), x, y)
+    elseif kind == "key" then
+      local name = tostring(event.key or ""):lower()
+      if name == "r" or name == "0" or name == "home" then
+        self:reset()
+      elseif name == "+" or name == "=" then
+        self:zoom(1.25)
+      elseif name == "-" or name == "_" then
+        self:zoom(0.8)
+      elseif name == "left" or name == "arrowleft" then
+        self.pan_x = self.pan_x - 0.08
+      elseif name == "right" or name == "arrowright" then
+        self.pan_x = self.pan_x + 0.08
+      elseif name == "up" or name == "arrowup" then
+        self.pan_y = self.pan_y - 0.08
+      elseif name == "down" or name == "arrowdown" then
+        self.pan_y = self.pan_y + 0.08
+      end
+    end
+    return self
+  end
+
+  return setmetatable(nav, {
+    __index = function(_, key) return rawget(nav, key) end,
+  })
+end
+
 local function finite(value)
   return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
 end
@@ -412,6 +612,20 @@ function methods:render(surface)
       end
       surface:candles(key, screen, math.max(2, slot * 0.62), item.up_ink, item.down_ink, item.opacity or 1.0)
     end
+  end
+
+  if o.selection then
+    local s = o.selection
+    local x0, x1 = sx(s.x0), sx(s.x1)
+    local y0, y1 = sy(s.y0), sy(s.y1)
+    local left_x, right_x = math.min(x0, x1), math.max(x0, x1)
+    local top_y, bottom_y = math.min(y0, y1), math.max(y0, y1)
+    surface:rect("chart-selection", left_x, top_y, math.max(1, right_x - left_x),
+      math.max(1, bottom_y - top_y), "primary", 0.14, 2)
+    surface:rect("chart-selection-top", left_x, top_y, math.max(1, right_x - left_x), 1, "primary", 0.8, 0)
+    surface:rect("chart-selection-bottom", left_x, bottom_y, math.max(1, right_x - left_x), 1, "primary", 0.8, 0)
+    surface:rect("chart-selection-left", left_x, top_y, 1, math.max(1, bottom_y - top_y), "primary", 0.8, 0)
+    surface:rect("chart-selection-right", right_x, top_y, 1, math.max(1, bottom_y - top_y), "primary", 0.8, 0)
   end
 
   if o.crosshair then

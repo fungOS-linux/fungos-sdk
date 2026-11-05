@@ -56,8 +56,8 @@ y = { min = 0, max = 200 }
 ```
 
 `min`/`max` are inferred from the series when omitted. `padding`, `grid`,
-`legend`, `max_points`, `title`, `subtitle`, `crosshair`, and `annotations` are
-chart options.
+`legend`, `max_points`, `title`, `subtitle`, `crosshair`, `annotations`, and
+`selection` are chart options.
 
 ```lua
 local c = chart.new {
@@ -69,7 +69,35 @@ local c = chart.new {
 ```
 
 `crosshair` is host-driven: a Spore supplies the data coordinate, the SDK draws
-the guide lines and labels. Pointer routing still belongs to Canvas.
+the guide lines and labels. `selection` is the same shape as an x/y range and
+draws a translucent range box. Pointer routing still belongs to Canvas.
+
+## Navigation
+
+`chart.navigator` is the reusable, pure viewport model behind the live demo:
+
+```lua
+local nav = chart.navigator():set_bounds(xlo, xhi, ylo, yhi)
+nav:feed { kind = "pointer", phase = "press", x = 0.2, y = 0.4 }
+nav:feed { kind = "pointer", phase = "move", x = 0.5, y = 0.4 }
+nav:feed { kind = "pointer", phase = "release", x = 0.5, y = 0.4 }
+local x, y, crosshair, selection = nav:view()
+```
+
+Supported input:
+
+| Input | Behavior |
+| --- | --- |
+| drag | pan x/y |
+| wheel | zoom around pointer |
+| Shift-drag | zoom to the selected x/y range |
+| double press | reset zoom and pan |
+| `r` / `0` / Home | reset |
+| `+` / `-` | zoom in/out |
+| arrows | pan |
+
+The navigator never calls a host API. The host routes pointer, scroll and key
+events; the Spore supplies data bounds and paints the returned domains.
 
 ## On-the-fly charts
 
@@ -133,6 +161,9 @@ scroll x y dx dy
 
 - drag to pan
 - wheel to zoom around the pointer
+- Shift-drag to select and zoom to a range
+- double-click to reset
+- `r`, `+`, `-`, and arrows from a focused producer
 - move for the crosshair
 - leave clears the crosshair
 
