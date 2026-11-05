@@ -42,6 +42,7 @@ chart.defaults = {
   padding = { top = 38, right = 20, bottom = 36, left = 52 },
   grid = 5,
   legend = true,
+  max_points = 1200,
   title = nil,
   subtitle = nil,
   x = { label = nil, min = nil, max = nil, format = nil },
@@ -76,12 +77,52 @@ local function series_points(item)
   return out
 end
 
+--- Largest-Triangle-Three-Buckets downsampling.
+--
+-- Keeps endpoints and the visually dominant point in each bucket. The returned
+-- points are references to the input, so callers must not mutate them.
+local function lttb(data, threshold)
+  local count = #data
+  if threshold >= count or threshold < 3 then return data end
+  local sampled = { data[1] }
+  local every = (count - 2) / (threshold - 2)
+  local anchor = 1
+  for bucket = 1, threshold - 2 do
+    local range_start = math.floor((bucket - 1) * every) + 2
+    local range_end = math.min(math.floor(bucket * every) + 2, count - 1)
+    local avg_start = math.floor(bucket * every) + 2
+    local avg_end = math.min(math.floor((bucket + 1) * every) + 2, count)
+    local avg_x, avg_y, avg_n = 0, 0, 0
+    for index = avg_start, avg_end do
+      avg_x = avg_x + data[index].x
+      avg_y = avg_y + data[index].y
+      avg_n = avg_n + 1
+    end
+    if avg_n > 0 then avg_x, avg_y = avg_x / avg_n, avg_y / avg_n end
+    local ax, ay = data[anchor].x, data[anchor].y
+    local best_area, best_index = -1, range_start
+    for index = range_start, range_end do
+      local area = math.abs((ax - avg_x) * (data[index].y - ay)
+        - (ax - data[index].x) * (avg_y - ay)) * 0.5
+      if area > best_area then best_area, best_index = area, index end
+    end
+    sampled[#sampled + 1] = data[best_index]
+    anchor = best_index
+  end
+  sampled[#sampled + 1] = data[count]
+  return sampled
+end
+
+chart.lttb = lttb
+
 --- Add a line series. `points` is `{ {x=,y=}, ... }` or `{ {x,y}, ... }`.
 function methods:line(opts)
   opts = copy(opts or {})
   opts.kind = "line"
   opts.ink = opts.ink or "primary"
   opts.width = opts.width or 2
+  opts.join = opts.join or "round"
+  opts.miter_limit = opts.miter_limit or 4.0
   opts.points = series_points(opts)
   self.series[#self.series + 1] = opts
   return self
@@ -94,6 +135,8 @@ function methods:area(opts)
   opts.ink = opts.ink or "primary"
   opts.width = opts.width or 2
   opts.fill_opacity = opts.fill_opacity or 0.16
+  opts.join = opts.join or "round"
+  opts.miter_limit = opts.miter_limit or 4.0
   opts.points = series_points(opts)
   self.series[#self.series + 1] = opts
   return self
@@ -253,8 +296,13 @@ function methods:render(surface)
   for index, item in ipairs(self.series) do
     local key = item.id or ("series-" .. index)
     if item.kind == "line" or item.kind == "area" then
+      local points = item.points
+      local threshold = item.max_points or o.max_points
+      if threshold and #points > threshold then
+        points = lttb(points, math.max(3, math.floor(threshold)))
+      end
       local screen = {}
-      for _, point in ipairs(item.points) do
+      for _, point in ipairs(points) do
         local x, y = sx(point.x), sy(point.y)
         if x >= left - 1 and x <= left + plot_w + 1 then
           screen[#screen + 1] = { x, y }
@@ -264,7 +312,7 @@ function methods:render(surface)
         surface:area(key .. "-fill", screen, sy(math.min(0, ylo)), item.ink, item.fill_opacity)
       end
       if surface.polyline then
-        surface:polyline(key, screen, item.width, item.ink, 1.0)
+        surface:polyline(key, screen, item.width, item.ink, 1.0, item.join, item.miter_limit)
       else
         for segment = 2, #screen do
           local a, b = screen[segment - 1], screen[segment]

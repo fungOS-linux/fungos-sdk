@@ -53,6 +53,7 @@ scene() {
 
 scene line chart_snapshot.lua 900 520
 scene area chart_area_snapshot.lua 900 520
+scene dense chart_dense_snapshot.lua 900 520
 
 echo "chart_demo: scenes in $OUT; re-run this script after edits"
 wait

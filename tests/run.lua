@@ -118,6 +118,28 @@ local chart_present, chart_hits = fleet:present()
 ok(chart_present.kind == "scene", "chart returns a scene present")
 ok(#chart_present.nodes > 12, "chart emits title, axes, grid and line nodes")
 ok(#chart_hits == 0, "chart has no hidden hit targets")
+local line_nodes = {}
+for _, node in ipairs(chart_present.nodes) do
+  if node.type == "polyline" then line_nodes[#line_nodes + 1] = node end
+end
+ok(#line_nodes == 1, "line series emits one polyline")
+ok(line_nodes[1].join == "round", "lines default to round joins")
+
+-- LTTB keeps endpoints and the dominant shape point without a TypeScript runtime.
+local dense = {}
+for index = 1, 5000 do
+  local x = index / 5000
+  dense[index] = { x = x, y = math.sin(x * 20) + (index == 2500 and 4 or 0) }
+end
+local reduced = chart.lttb(dense, 200)
+ok(#reduced == 200, "lttb should honor the threshold")
+ok(reduced[1] == dense[1] and reduced[#reduced] == dense[#dense], "lttb keeps endpoints")
+local spike = false
+for _, point in ipairs(reduced) do
+  if point == dense[2500] then spike = true end
+end
+ok(spike, "lttb keeps a dominant spike")
+ok(#chart.lttb(dense, 6000) == 5000, "lttb leaves small series alone")
 
 -- A view that calls ui.surface can be captured as a portable soil_scene
 -- payload without calling canvas.rect/text or widget.hit.

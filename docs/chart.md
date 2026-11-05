@@ -41,7 +41,7 @@ local present = c:present()  -- portable soil_scene document
 
 | Method | Shape |
 | --- | --- |
-| `c:line(opts)` | `points = { {x,y}, ... }`, `ink`, `width`, `label` |
+| `c:line(opts)` | `points = { {x,y}, ... }`, `ink`, `width`, `join`, `label` |
 | `c:area(opts)` | line points plus `fill_opacity`; fill drops to zero |
 | `c:scatter(opts)` | `points`, `size`, `ink`, `label` |
 | `c:bar(opts)` | `values = { number, ... }`, `labels`, `ink` |
@@ -55,7 +55,7 @@ y = { min = 0, max = 200 }
 ```
 
 `min`/`max` are inferred from the series when omitted. `padding`, `grid`,
-`legend`, `title`, and `subtitle` are chart options.
+`legend`, `max_points`, `title`, and `subtitle` are chart options.
 
 ## On-the-fly charts
 
@@ -73,7 +73,12 @@ function M.render(snapshot)
 end
 ```
 
-Line series emit a single `polyline` scene node per series, so the GPU renderer
-draws them as triangle strips instead of thousands of one-pixel rects. Area
-series add a single `area` node and fill to zero; the same API is the place a
-native miter/decimation pipeline will land.
+Line series emit a single `polyline` scene node per series. The GPU renderer
+draws the stroke as quads plus native joins; `join = "miter" | "round" | "bevel"`
+defaults to `round` for chart lines, with `miter_limit` limiting sharp miters.
+Area series add a single `area` node and fill to zero.
+
+Series above `max_points` (default 1200, override per series) are downsampled
+with Largest-Triangle-Three-Buckets before projection. LTTB runs in Lua, keeps
+the endpoints, and preserves the visually dominant point in each bucket. There
+is no TypeScript runtime and no second chart ABI.

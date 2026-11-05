@@ -833,7 +833,7 @@ function ui.scene_surface(width, height, theme)
     end
   end
 
-  function surface:polyline(id, points, width, ink, opacity)
+  function surface:polyline(id, points, width, ink, opacity, join, miter_limit)
     local out = {}
     for _, point in ipairs(points or {}) do
       out[#out + 1] = { self:nx(point[1]), self:ny(point[2]) }
@@ -847,6 +847,8 @@ function ui.scene_surface(width, height, theme)
       width = self:sh(math.max(1, width or 1)),
       ink = ink or "primary",
       opacity = opacity == nil and 1.0 or opacity,
+      join = join or "miter",
+      miter_limit = miter_limit or 4.0,
     }
   end
 
@@ -971,7 +973,7 @@ function ui.surface(width, height, theme)
     end
   end
 
-  function surface:polyline(id, points, width, ink, opacity)
+  function surface:polyline(id, points, width, ink, opacity, join, miter_limit)
     for index = 2, #(points or {}) do
       local previous, point = points[index - 1], points[index]
       self:line(id .. "-" .. index, previous[1], previous[2], point[1], point[2], width, ink, opacity)
