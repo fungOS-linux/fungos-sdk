@@ -47,6 +47,7 @@ for the prototype:
 - `all` — favorites first, then MRU, then name
 - `favorites`
 - `recent` — MRU order, top 20
+- `updated` — records modified in the last 30 days
 - auto org groups (`org-<slug>`)
 - auto email-domain groups (`domain-<slug>`)
 - explicit tags (`tag-<slug>`)
@@ -96,6 +97,11 @@ None yet.
 ## Theme/config
 
 Uses `module.theme` and the global `fungos.ui` profile.
+
+## Context
+
+The detail page renders favorite state, tags, recent interaction summaries, and
+record update time. Missing connectors yield an empty context, not an error.
 
 ## Stable ids
 

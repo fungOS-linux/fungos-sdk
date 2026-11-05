@@ -21,6 +21,40 @@ local function initials(name)
   return name:sub(1, 1):upper()
 end
 
+local function relative_time(ms)
+  local now = ui.now_ms()
+  ms = tonumber(ms) or 0
+  if now <= 0 or ms <= 0 then return "" end
+  local diff = math.max(0, now - ms) / 1000
+  if diff < 60 then return "now" end
+  if diff < 3600 then return string.format("%dm", math.floor(diff / 60)) end
+  if diff < 86400 then return string.format("%dh", math.floor(diff / 3600)) end
+  if diff < 7 * 86400 then return string.format("%dd", math.floor(diff / 86400)) end
+  if diff < 30 * 86400 then return string.format("%dw", math.floor(diff / (7 * 86400))) end
+  if diff < 365 * 86400 then return string.format("%dmo", math.floor(diff / (30 * 86400))) end
+  return string.format("%dy", math.floor(diff / (365 * 86400)))
+end
+
+local AVATAR_INKS = { "primary", "success", "warning" }
+
+local function avatar_ink(name)
+  local total = 0
+  for index = 1, #tostring(name or "") do
+    total = total + tostring(name):byte(index)
+  end
+  return AVATAR_INKS[(total % #AVATAR_INKS) + 1]
+end
+
+local function kind_label(kind, source)
+  local map = {
+    email = "Email",
+    call = "Call",
+    message = "Message",
+    meeting = "Meeting",
+  }
+  return map[kind] or (source or "Interaction")
+end
+
 local function selected_contact(snapshot)
   for index, contact in ipairs(snapshot.contacts or {}) do
     if contact.id == snapshot.selected_id then return contact, index end
@@ -314,9 +348,12 @@ local function contact_row(contact, index, selected)
   }, {
     ui.avatar("contact-" .. index .. "-avatar", initials(contact.name), {
       size = 34,
-      ink = selected and "primary" or "muted",
+      ink = avatar_ink(contact.name),
     }),
     ui.column("contact-" .. index .. "-body", { flex_grow = 1, gap = 2 }, body),
+    contact_favorite(contact) and ui.text("contact-" .. index .. "-favorite", "★", {
+      size = 10, ink = "warning", width = 14,
+    }) or nil,
   })
 end
 
@@ -405,20 +442,28 @@ local function details_page(contact, compact)
     ui.avatar("contact-detail-avatar", initials(contact.name), {
       size = compact and 48 or 76,
       text_size = compact and 18 or 28,
-      ink = "primary",
+      ink = avatar_ink(contact.name),
     }),
-    ui.column("contact-detail-meta", { flex_grow = 1, gap = compact and 1 or 4 }, {
-      ui.text("contact-detail-name", clip(contact.name, 40), {
-        size = compact and 19 or 27,
-        height = compact and 25 or 34,
-        ink = "primary",
-      }),
-      ui.text("contact-detail-role", clip(contact_line(contact), compact and 34 or 56), {
-        size = compact and 10 or 12,
-        height = compact and 16 or 20,
-        ink = "muted",
-      }),
-    }),
+    (function()
+      local meta = {
+        ui.text("contact-detail-name", clip(contact.name, 40), {
+          size = compact and 19 or 27,
+          height = compact and 25 or 34,
+          ink = "primary",
+        }),
+        ui.text("contact-detail-role", clip(contact_line(contact), compact and 34 or 56), {
+          size = compact and 10 or 12,
+          height = compact and 16 or 20,
+          ink = "muted",
+        }),
+      }
+      if contact_favorite(contact) then
+        meta[#meta + 1] = ui.text("contact-detail-favorite", "★ FAVORITE", {
+          size = 8, height = 14, ink = "warning",
+        })
+      end
+      return ui.column("contact-detail-meta", { flex_grow = 1, gap = compact and 1 or 4 }, meta)
+    end)(),
   }
 
   local children = {
@@ -465,6 +510,17 @@ local function details_page(contact, compact)
     }))
   end
 
+  if contact.tags and #contact.tags > 0 then
+    local tags = {}
+    for index, tag in ipairs(contact.tags) do
+      if index > 4 then break end
+      tags[#tags + 1] = ui.badge("contact-detail-tag-" .. index, "#" .. tag, {
+        size = 8, ink = "primary", height = 16,
+      })
+    end
+    ui.push(children, ui.row("contact-detail-tags", { height = 18, gap = 4 }, tags))
+  end
+
   ui.push(children, ui.section_label("contact-details-label", "DETAILS"))
   local function detail_line(id, label, values, compact_height)
     if not values or #values == 0 then return end
@@ -484,6 +540,46 @@ local function details_page(contact, compact)
   if contact.birthday and contact.birthday ~= "" then
     detail_line("contact-detail-birthday", "BIRTHDAY", { contact.birthday }, compact and 17 or 21)
   end
+
+  ui.push(children, ui.section_label("contact-context-label", "CONTEXT"))
+  local context = {}
+  local interactions = {}
+  for _, interaction in ipairs(contact.interactions or {}) do interactions[#interactions + 1] = interaction end
+  table.sort(interactions, function(a, b)
+    return (tonumber(a.last_at_ms) or 0) > (tonumber(b.last_at_ms) or 0)
+  end)
+  for index = 1, math.min(3, #interactions) do
+    local interaction = interactions[index]
+    context[#context + 1] = ui.row("contact-context-" .. index, { height = 20, gap = 6 }, {
+      ui.text("contact-context-" .. index .. "-kind", kind_label(interaction.kind, interaction.source), {
+        size = 10, ink = "text", flex_grow = 1,
+      }),
+      ui.text("contact-context-" .. index .. "-count", string.format("%d×", tonumber(interaction.count) or 1), {
+        size = 9, ink = "muted", width = 32,
+      }),
+      ui.text("contact-context-" .. index .. "-when", relative_time(interaction.last_at_ms), {
+        size = 9, ink = "muted", width = 38,
+      }),
+    })
+  end
+  if #context == 0 then
+    local last = contact_mru(contact)
+    if last > 0 then
+      context[1] = ui.text("contact-context-empty", "Last contacted " .. relative_time(last), {
+        size = 10, height = 20, ink = "muted",
+      })
+    else
+      context[1] = ui.text("contact-context-empty", "No messages or calls recorded.", {
+        size = 10, height = 20, ink = "muted",
+      })
+    end
+  end
+  if tonumber(contact.updated_at_ms) and tonumber(contact.updated_at_ms) > 0 then
+    context[#context + 1] = ui.text("contact-context-updated", "Updated " .. relative_time(contact.updated_at_ms), {
+      size = 9, height = 18, ink = "muted",
+    })
+  end
+  ui.push(children, ui.column("contact-context", { gap = 2 }, context))
 
   ui.push(children, ui.section_label("contact-notes-label", "NOTES"))
   ui.push(children, ui.text("contact-notes-text", (contact.note and contact.note ~= "") and contact.note or "No notes yet.", {
@@ -699,7 +795,7 @@ function M.render(input)
       local avatar = ui.find(laid, "contact-" .. index .. "-avatar")
       if avatar then
         surface:rect("contact-avatar-bg-" .. index, avatar.rect.x, avatar.rect.y, avatar.rect.width, avatar.rect.height,
-          is_selected and "primary" or "surface", is_selected and 0.20 or 0.72, avatar.rect.width / 2)
+          is_selected and "primary" or avatar_ink(contacts[index].name), is_selected and 0.20 or 0.18, avatar.rect.width / 2)
       end
     end
   end
@@ -707,7 +803,7 @@ function M.render(input)
   local avatar = ui.find(laid, "contact-detail-avatar")
   if avatar then
     surface:rect("contact-detail-avatar-bg", avatar.rect.x, avatar.rect.y, avatar.rect.width, avatar.rect.height,
-      "primary", 0.14, avatar.rect.width / 2)
+      selected and avatar_ink(selected.name) or "primary", 0.18, avatar.rect.width / 2)
   end
 
   for _, id in ipairs({
@@ -759,6 +855,8 @@ function M.render(input)
         or node.id:match("^contacts%-groups%-(.-)%-label$")
       return id == selected_filter and "primary" or "muted"
     end
+    if node.id == "contact-action-message-label" then return "background" end
+    if node.id:find("^contact%-action") then return "primary" end
     if node.id:find("subtitle") or node.id:find("list%-title") or node.id:find("list%-count")
       or node.id:find("role") or node.id:find("%-line$") or node.id:find("%-preview$")
       or node.id:find("label$") or node.id:find("notes%-text") then
@@ -767,12 +865,12 @@ function M.render(input)
     if node.id == "contacts-title" or node.id == "contact-detail-name" or node.id:find("avatar%-text") then
       return "primary"
     end
+    if node.id:find("favorite$") then return "warning" end
     if node.id:find("^contact%-%d+%-name$") then
       return "text"
     end
-    if node.id:find("^contact%-action") then
-      return "background"
-    end
+    if node.id:find("^contact%-context%-%d+%-kind$") then return "text" end
+    if node.id:find("^contact%-detail%-tag") then return "primary" end
     if node.id == "contact-toast-undo" then return "primary" end
     return node.ink or "text"
   end)

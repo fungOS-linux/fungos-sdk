@@ -202,7 +202,18 @@ function ui.button(id, label, opts)
   if opts.width ~= nil then
     layout.width = opts.width
   elseif not opts.flex_grow then
-    layout.width = #tostring(label or "") * size * 0.62 + 24
+    local text_width
+    if type(canvas) == "table" and type(canvas.measure_text) == "function" then
+      local ok, measured = pcall(canvas.measure_text, tostring(label or ""), {
+        size = size,
+        line_height = size + 4,
+        wrap = false,
+      })
+      if ok and type(measured) == "table" and type(measured.width) == "number" then
+        text_width = measured.width
+      end
+    end
+    layout.width = (text_width or (#tostring(label or "") * size * 0.62)) + 24
   end
 
   local child = ui.text(id .. "-label", label, {
