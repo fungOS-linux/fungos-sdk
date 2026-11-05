@@ -191,11 +191,18 @@ local function preflight(source, name, options)
   local validate = dofile(join(options.sdk, "lua/fungos/validate.lua"))
   local width = tonumber(options.width) or 1200
   local height = tonumber(options.height) or 900
+  local now = os.time()
+  local civil = os.date("*t", now)
   local env = {
     module = {
       viewport = { width = width, height = height },
       theme = { body = 16 },
-      now = { epoch_ms = os.time() * 1000 },
+      now = {
+        epoch_ms = now * 1000,
+        year = civil.year, month = civil.month, day = civil.day,
+        hour = civil.hour, minute = civil.min, second = civil.sec,
+        weekday = civil.wday,
+      },
     },
     canvas = {
       layout = function(tree, available_width, available_height)
