@@ -10,6 +10,8 @@ local config = load_module("lua/fungos/config.lua")
 local compose = load_module("lua/fungos/compose.lua")
 local action = load_module("lua/fungos/action.lua")
 local validate = load_module("lua/fungos/validate.lua")
+package.loaded["fungos.ui"] = ui
+local chart = load_module("lua/fungos/chart.lua")
 
 local passed = 0
 local function ok(value, message)
@@ -108,6 +110,14 @@ local children = { { id = "b" }, { id = "a" }, { id = "c" } }
 config.order_children(children, { "a", "b" })
 ok(children[1].id == "a" and children[2].id == "b" and children[3].id == "c", "order should rank listed ids first")
 
+
+-- Chart DSL is a normal scene producer: pure input, no host chart API.
+local fleet = chart.new { title = "Fleet", width = 400, height = 300 }
+fleet:line { id = "p50", ink = "success", points = { { 0, 40 }, { 1, 44 }, { 2, 41 } } }
+local chart_present, chart_hits = fleet:present()
+ok(chart_present.kind == "scene", "chart returns a scene present")
+ok(#chart_present.nodes > 12, "chart emits title, axes, grid and line nodes")
+ok(#chart_hits == 0, "chart has no hidden hit targets")
 
 -- A view that calls ui.surface can be captured as a portable soil_scene
 -- payload without calling canvas.rect/text or widget.hit.

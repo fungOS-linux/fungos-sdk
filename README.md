@@ -30,6 +30,10 @@ Action bars can be hand-authored or projected from a granted Canvas/DCP action
 catalog with `ui.action_bar_from_catalog`. See
 [`docs/action-bar.md`](docs/action-bar.md).
 
+Charts use the same rule: `require("fungos.chart")` describes series, axes and
+labels in Lua; the painter emits scene primitives. See
+[`docs/chart.md`](docs/chart.md).
+
 ## The boundary
 
 ```text

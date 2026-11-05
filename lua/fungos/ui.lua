@@ -821,6 +821,18 @@ function ui.scene_surface(width, height, theme)
     }
   end
 
+  function surface:line(id, x1, y1, x2, y2, width, ink, opacity)
+    local dx, dy = x2 - x1, y2 - y1
+    local length = math.max(math.abs(dx), math.abs(dy))
+    local steps = math.max(1, math.ceil(length))
+    local thick = math.max(1, width or 1)
+    for index = 0, steps do
+      local t = index / steps
+      self:rect(id .. "-" .. index, x1 + dx * t - thick * 0.5, y1 + dy * t - thick * 0.5,
+        thick, thick, ink or "primary", opacity == nil and 1.0 or opacity, thick * 0.5)
+    end
+  end
+
   function surface:find(laid, id)
     return ui.find(laid, id)
   end
@@ -911,6 +923,18 @@ function ui.surface(width, height, theme)
       translation = { self:nx(x), self:ny(y), z or (self.z + 0.1) },
       scale = { self:ts(size), self:ts(size), 1 },
     }
+  end
+
+  function surface:line(id, x1, y1, x2, y2, width, ink, opacity)
+    local dx, dy = x2 - x1, y2 - y1
+    local length = math.max(math.abs(dx), math.abs(dy))
+    local steps = math.max(1, math.ceil(length))
+    local thick = math.max(1, width or 1)
+    for index = 0, steps do
+      local t = index / steps
+      self:rect(id .. "-" .. index, x1 + dx * t - thick * 0.5, y1 + dy * t - thick * 0.5,
+        thick, thick, ink or "primary", opacity == nil and 1.0 or opacity, thick * 0.5)
+    end
   end
 
   function surface:find(laid, id)

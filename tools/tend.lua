@@ -157,6 +157,7 @@ local MODULES = {
   ["fungos.config"] = "lua/fungos/config.lua",
   ["fungos.compose"] = "lua/fungos/compose.lua",
   ["fungos.action"] = "lua/fungos/action.lua",
+  ["fungos.chart"] = "lua/fungos/chart.lua",
 }
 
 local function module_loaders(sdk)
@@ -164,7 +165,7 @@ local function module_loaders(sdk)
   for name, path in pairs(MODULES) do
     local source = strip_comments(read(join(sdk, path)))
     chunks[#chunks + 1] = string.format(
-      '[%q] = function()\n%s\nend',
+      '[%q] = function(require)\n%s\nend',
       name,
       source
     )
@@ -374,7 +375,7 @@ local function compose(options)
     "  if __cache[name] then return __cache[name] end",
     "  local loader = __modules[name]",
     "  if not loader then error('unknown SDK module ' .. tostring(name)) end",
-    "  local module = loader()",
+    "  local module = loader(__require)",
     "  __cache[name] = module",
     "  return module",
     "end",
