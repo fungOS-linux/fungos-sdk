@@ -981,6 +981,45 @@ function ui.capture(width, height, theme, paint)
   return present, surface.hits
 end
 
+--- A rect inside an existing surface, in logical pixels.
+--
+-- The child delegates primitives and ids to the parent but maps its local
+-- coordinates into the parent's pixel box. It is the composition seam for
+-- dashboards and component cells: a child never needs to know the parent's
+-- normalized coordinate system.
+function ui.subsurface(parent, x, y, width, height, prefix)
+  if not parent or not parent.nx or not parent.ny then
+    error("ui.subsurface needs a surface", 2)
+  end
+  prefix = prefix or ""
+  local sub = {
+    width = width,
+    height = height,
+    z = parent.z,
+    theme = parent.theme,
+    used = parent.used,
+    parent = parent,
+    origin = { x = x, y = y },
+  }
+  function sub:nx(px) return parent:nx(x + px) end
+  function sub:ny(py) return parent:ny(y + py) end
+  function sub:sw(px) return parent:sw(px) end
+  function sub:sh(py) return parent:sh(py) end
+  function sub:ts(px) return parent:ts(px) end
+  -- Prefix ids so two composed charts cannot collide in the host scene. The
+  -- primitive bodies still live in the parent; only identity is namespaced.
+  function sub:rect(id, ...) return parent:rect(prefix .. id, ...) end
+  function sub:text(id, ...) return parent:text(prefix .. id, ...) end
+  function sub:line(id, ...) return parent:line(prefix .. id, ...) end
+  function sub:polyline(id, ...) return parent:polyline(prefix .. id, ...) end
+  function sub:area(id, ...) return parent:area(prefix .. id, ...) end
+  function sub:points(id, ...) return parent:points(prefix .. id, ...) end
+  function sub:heatmap(id, ...) return parent:heatmap(prefix .. id, ...) end
+  function sub:candles(id, ...) return parent:candles(prefix .. id, ...) end
+  function sub:hit(id, ...) return parent:hit(prefix .. id, ...) end
+  return setmetatable(sub, { __index = parent })
+end
+
 --- A tiny scene surface in logical pixels.
 ---
 --- Surface coordinates are top-left origin. It converts to Canvas's normalized

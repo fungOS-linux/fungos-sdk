@@ -492,8 +492,10 @@ local function ink_for(item, value, lo, hi)
 end
 
 --- Paint the chart into `surface`. This is what a view calls from render().
-function methods:render(surface)
-  local width, height = ui.viewport(self.opts.width, self.opts.height)
+function methods:render(surface, render_width, render_height)
+  local viewport_width, viewport_height = ui.viewport(self.opts.width, self.opts.height)
+  local width = render_width or viewport_width
+  local height = render_height or viewport_height
   local theme = ui.theme(self.opts.theme)
   surface = surface or ui.surface(width, height, theme)
   local o = self.opts
@@ -668,6 +670,45 @@ function methods:present()
   local width, height = ui.viewport(self.opts.width, self.opts.height)
   local theme = ui.theme(self.opts.theme)
   return ui.capture(width, height, theme, function(surface) self:render(surface) end)
+end
+
+--- A composable grid of charts on one surface.
+--
+-- Every child is a normal chart object: it can be built from a snapshot, another
+-- Spore's data, or an inline literal. Layout is owned here; the child still
+-- paints its own axes and series through `fungos.ui`.
+function chart.dashboard(opts)
+  opts = opts or {}
+  local dashboard = {
+    opts = opts,
+    charts = opts.charts or {},
+  }
+  setmetatable(dashboard, { __index = dashboard })
+  function dashboard:render(surface)
+    local width, height = ui.viewport(self.opts.width, self.opts.height)
+    surface = surface or ui.surface(width, height, ui.theme(self.opts.theme))
+    local charts = self.charts
+    if #charts == 0 then return end
+    local columns = math.max(1, math.min(tonumber(self.opts.columns) or #charts, #charts))
+    local rows = math.max(1, math.ceil(#charts / columns))
+    local gap = tonumber(self.opts.gap) or 12
+    local pad = tonumber(self.opts.padding) or 0
+    local cell_w = math.max(16, (width - pad * 2 - gap * (columns - 1)) / columns)
+    local cell_h = math.max(16, (height - pad * 2 - gap * (rows - 1)) / rows)
+    for index, cell in ipairs(charts) do
+      local column = (index - 1) % columns
+      local row = math.floor((index - 1) / columns)
+      local x = pad + column * (cell_w + gap)
+      local y = pad + row * (cell_h + gap)
+      cell:render(ui.subsurface(surface, x, y, cell_w, cell_h, string.format("cell-%d-", index)), cell_w, cell_h)
+    end
+  end
+  function dashboard:present()
+    local width, height = ui.viewport(self.opts.width, self.opts.height)
+    local theme = ui.theme(self.opts.theme)
+    return ui.capture(width, height, theme, function(surface) self:render(surface) end)
+  end
+  return dashboard
 end
 
 return chart

@@ -188,6 +188,23 @@ nav:feed { kind = "pointer", phase = "release", x = 0.7, y = 0.5, at_ms = 2020 }
 xdom = nav:view()
 ok(math.abs((xdom.max - xdom.min) - 100) < 0.001, "plain drag pans without changing span")
 
+-- Charts compose as Lua components: a dashboard places ordinary chart objects
+-- in cells without a second renderer or host ABI.
+local dash = chart.dashboard { columns = 2, gap = 8, width = 800, height = 500, charts = {
+  chart.new({ title = "left", width = 400, height = 250, padding = { top = 28, right = 12, bottom = 24, left = 36 } })
+    :line { id = "l", points = { { 0, 1 }, { 1, 3 }, { 2, 2 } } },
+  chart.new({ title = "right", width = 400, height = 250, padding = { top = 28, right = 12, bottom = 24, left = 36 } })
+    :line { id = "r", points = { { 0, 2 }, { 1, 1 }, { 2, 3 } } },
+} }
+local dash_present = dash:present()
+ok(dash_present.kind == "scene", "dashboard returns one scene")
+ok(#dash_present.nodes > 30, "dashboard combines both chart trees")
+local dash_rects = 0
+for _, node in ipairs(dash_present.nodes) do
+  if node.type == "rect" then dash_rects = dash_rects + 1 end
+end
+ok(dash_rects > 20, "dashboard keeps child primitives")
+
 -- A view that calls ui.surface can be captured as a portable soil_scene
 -- payload without calling canvas.rect/text or widget.hit.
 _G.canvas = {
