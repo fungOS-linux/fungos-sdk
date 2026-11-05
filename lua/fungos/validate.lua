@@ -1,6 +1,6 @@
 -- fungos.validate — preflight checks for Spore UI trees and scene calls.
 --
--- This runs in the development loop (`mush`) before a module is written or
+-- This runs in the development loop (`tend`) before a module is written or
 -- reloaded. It catches the things Canvas would otherwise reject at runtime:
 --
 --   nil holes / sparse child arrays

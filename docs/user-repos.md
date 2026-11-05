@@ -100,7 +100,7 @@ views expose the same files and the same apply/reload semantics.
 
 This means:
 
-- `mush` reads the same `~/.config/fungos/ui.lua` as the native shell.
+- `tend` reads the same `~/.config/fungos/ui.lua` as the native shell.
 - the Settings Spore edits the same files.
 - the VFS sees the same themes and recipes.
 - a fleet can clone the dotfiles repo and get the same UI.

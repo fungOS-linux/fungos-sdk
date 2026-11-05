@@ -9,7 +9,7 @@
 -- and never performs I/O.
 --
 -- The kit intentionally has no `require` dependency so a Spore package can be
--- composed into a single Canvas module by `mush` or a package builder.
+-- composed into a single Canvas module by `tend` or a package builder.
 
 local ui = {}
 
@@ -220,7 +220,7 @@ function ui.slot(name, fallback)
 end
 
 --- A named component supplied by a component/chrome/rice Spore.
---- The host or `mush` resolves it before layout. If it is unresolved, the
+--- The host or `tend` resolves it before layout. If it is unresolved, the
 --- fallback is used and the missing component is reported.
 function ui.component(name, props, children, fallback)
   return {

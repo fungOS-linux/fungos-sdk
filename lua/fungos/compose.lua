@@ -153,7 +153,7 @@ function compose.apply(tree, registry, ctx, on_missing)
   return tree
 end
 
---- Collect the names a view depends on. Useful for `mush doctor`.
+--- Collect the names a view depends on. Useful for `tend doctor`.
 function compose.dependencies(tree, into)
   into = into or { components = {}, slots = {} }
   walk(tree, function(node)

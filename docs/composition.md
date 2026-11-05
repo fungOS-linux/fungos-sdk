@@ -144,7 +144,7 @@ return {
 - A UI Spore cannot gain authority by being composed.
 - Components are pure: `(ctx, props, children) -> tree`.
 - Slots are pure: `(ctx, fallback_node) -> tree`.
-- A missing component uses its fallback and is reported by `mush doctor`.
+- A missing component uses its fallback and is reported by `tend doctor`.
 - An app must document the components/slots it uses and the ones it exports.
 - Component names are namespaced, e.g. `dev.fungos.mail/thread-row`.
 - Internal ids may change; documented stable ids may not.

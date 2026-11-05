@@ -16,7 +16,7 @@ Every Spore with a `[ui]` entry **must** include:
 ui/API.md
 ```
 
-The file is checked by `mush doctor` and by the package/CI check. A missing file
+The file is checked by `tend check`, `tend doctor`, and by the package/CI check. A missing file
 is an error, not a warning.
 
 ## Required sections

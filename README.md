@@ -14,14 +14,14 @@ fungos-sdk/
     compose.lua   # app + component + chrome + rice composition
     config.lua    # profile resolution
     action.lua    # action intents
-    validate.lua  # preflight tree/scene validation for mush
+    validate.lua  # preflight tree/scene validation for tend
   rust/
     crates/fungos-sdk/src/
       action.rs   # action envelopes
       scene.rs    # scene and layout types
   schemas/        # shared JSON shapes
   docs/           # composition and Lua API contract
-  tools/          # mush preview/compose
+  tools/          # tend preview/compose
   examples/
   templates/      # user-spores and user-dotfiles starting points
 ```
@@ -56,11 +56,12 @@ depend on it, document it.
 Once the SDK is installed:
 
 ```bash
-mush doctor
-mush examples/inbox.lua --snapshot examples/inbox_snapshot.lua --surface md
+tend doctor examples/inbox.lua --snapshot examples/inbox_snapshot.lua
+tend check examples/inbox.lua examples/inbox_snapshot.lua
+tend examples/inbox.lua --snapshot examples/inbox_snapshot.lua --surface inbox
 ```
 
-`mush` composes the SDK, the view, a snapshot, and the user profile into a
+`tend` composes the SDK, the view, a snapshot, and the user profile into a
 preview module, runs a fake-host preflight, and only then writes/reloads Canvas.
 The preflight catches sparse child arrays, duplicate ids, invalid kinds, empty or
 non-printable scene text, non-finite geometry, and malformed scene calls.
@@ -85,7 +86,7 @@ The first slice is deliberately narrow:
 - component/slot composition
 - profile resolution
 - action intents
-- `mush` preview loop
+- `tend` preview loop
 - Rust action/scene types
 - Spore Lua API documentation contract
 
