@@ -620,6 +620,9 @@ function M.render(input)
     elseif event.phase == "move" then
       state.hover = target
       laid = build()
+    elseif event.phase == "leave" then
+      state.hover = nil
+      laid = build()
     end
   end
 
@@ -723,6 +726,14 @@ function M.render(input)
   if selected_row then
     surface:rect("thread-selected", selected_row.rect.x, selected_row.rect.y,
       selected_row.rect.width, selected_row.rect.height, "primary", 0.15, 8)
+  end
+
+  if state.hover and state.hover ~= state.pressed then
+    local hover = ui.find(laid, state.hover)
+    if hover and hover.kind == "container" then
+      surface:rect("hover", hover.rect.x, hover.rect.y,
+        hover.rect.width, hover.rect.height, "primary", 0.08, 7)
+    end
   end
 
   if state.pressed then

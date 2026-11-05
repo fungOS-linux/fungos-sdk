@@ -162,7 +162,8 @@ host-owned. The view only renders the projection and emits intents.
 | `key` with `j`/`down` | — | next thread |
 | `key` with `k`/`up` | — | previous thread |
 | `pointer` press/release | coordinates | immediate press state and target activation |
-| `pointer` move | coordinates | hover state when the host sends it |
+| `pointer` move | coordinates | hover state; host sends only when the hit target changes |
+| `pointer` leave | — | clear hover when the pointer leaves the module surface |
 
 The view persists its own selection/state through the Canvas `module.select`
 memory:
@@ -175,8 +176,11 @@ This is view-local memory, not Spore state. Durable mail state still belongs to
 the Spore/Unibus action router.
 
 Text input, command palette execution, and composer editing are not wired yet.
-The host currently dispatches pointer press/release, not hover moves; the view
-is prepared to handle moves when that is enabled.
+
+Hover is host-throttled: Canvas owns the retained module hit targets and emits a
+`pointer.move` only when the pointer enters a different target, plus
+`pointer.leave` when it leaves the module. Moving within the same row does not
+re-render Lua.
 
 ## Actions
 
