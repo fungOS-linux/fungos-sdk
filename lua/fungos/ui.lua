@@ -477,12 +477,17 @@ end
 function ui.list_row(id, opts, children)
   opts = opts or {}
   local layout = {
-    height = opts.height or 62,
     direction = "row",
     gap = opts.gap or 10,
     align_items = opts.align_items or "center",
     padding = opts.padding or { top = 8, right = 12, bottom = 8, left = 12 },
   }
+  if opts.auto_height then
+    layout.min_height = opts.min_height or opts.height or 62
+  else
+    layout.height = opts.height or 62
+    if opts.min_height then layout.min_height = opts.min_height end
+  end
   if opts.width then layout.width = opts.width end
   if opts.flex_grow ~= nil then layout.flex_grow = opts.flex_grow end
   return {
@@ -776,6 +781,14 @@ function ui.surface(width, height, theme)
   end
 
   function surface:hit(id, rect, label)
+    -- Hit targets outside the surface are a layout/overflow bug. Never emit
+    -- geometry the host will reject; the caller can still draw clipped content.
+    if rect.width <= 0 or rect.height <= 0
+      or rect.x < -0.5 or rect.y < -0.5
+      or rect.x + rect.width > self.width + 0.5
+      or rect.y + rect.height > self.height + 0.5 then
+      return false
+    end
     widget.hit {
       id = id,
       label = label or "hit",
@@ -784,6 +797,7 @@ function ui.surface(width, height, theme)
       width = self:sw(rect.width),
       height = self:sh(rect.height),
     }
+    return true
   end
 
   function surface:background(ink)

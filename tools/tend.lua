@@ -214,6 +214,17 @@ local function preflight(source, name, options)
       hit = function(args)
         if type(args) ~= "table" then error("widget.hit needs a table", 2) end
         if type(args.id) ~= "string" or args.id == "" then error("widget.hit id must be a string", 2) end
+        for _, key in ipairs({ "x", "y", "width", "height" }) do
+          local value = args[key]
+          if type(value) ~= "number" or value ~= value or value == math.huge or value == -math.huge then
+            error("widget.hit " .. key .. " must be finite", 2)
+          end
+        end
+        if args.width <= 0 or args.height <= 0 then error("widget.hit needs positive size", 2) end
+        if args.x < -4 or args.x > 4 or args.y < -4 or args.y > 4
+          or args.x + args.width > 4.0001 or args.y + args.height > 4.0001 then
+          error("widget.hit geometry is outside the normalized surface", 2)
+        end
       end,
     },
   }
