@@ -59,6 +59,25 @@ local intent = action.intent("mail.archive", { thread_id = "x" })
 ok(action.valid(intent), "action intent should be valid")
 ok(not action.valid({ action = "" }), "empty action id should be invalid")
 
+-- action bar accessibility contract
+local bar = ui.action_bar("app-actions", {
+  { id = "run", label = "Run", shortcut = "ctrl+enter", action = action.intent("elmers.run", { workflow_id = "crm/leads" }) },
+  { separator = true },
+  { id = "approve", label = "Approve", confirm = true, disabled = true, disabled_reason = "No pending approval" },
+  { spacer = true },
+  { id = "refresh", label = "Refresh", action = action.intent("elmers.refresh") },
+}, { label = "Elmers actions" })
+ok(bar.role == "toolbar", "action bar should be a toolbar")
+ok(bar.a11y.role == "toolbar", "action bar should expose a11y role")
+ok(bar.a11y.label == "Elmers actions", "action bar should expose a11y label")
+ok(bar.children[1].role == "button", "action should be a button")
+ok(bar.children[1].shortcut == "ctrl+enter", "shortcut should be retained")
+ok(bar.children[1].action.action == "elmers.run", "action intent should be retained")
+ok(bar.children[3].confirm == true, "confirm hint should be retained")
+ok(bar.children[3].a11y.disabled == true, "disabled state should be exposed")
+ok(bar.children[3].a11y.disabled_reason == "No pending approval", "disabled reason should be exposed")
+ok(bar.children[4].kind == "spacer", "spacer should be preserved")
+
 -- config hide/order
 local hidden = config.hidden({ hide = { "rail.tags", "rail.footer" } })
 ok(hidden["rail.tags"] and hidden["rail.footer"], "hide set should contain entries")

@@ -212,6 +212,94 @@ function ui.button(id, label, opts)
   }
 end
 
+--- A pressable app action with accessibility and safety metadata.
+---
+--- `opts.action` is an intent built with `fungos.action`. The host decides
+--- whether it is allowed. `confirm`, `disabled_reason`, `shortcut`, `help` and
+--- `pending` are presentation/policy hints, never authority.
+function ui.action_button(id, label, opts)
+  opts = opts or {}
+  if type(id) == "table" then
+    opts = id
+    id = opts.id
+    label = opts.label
+  end
+  local button = ui.button(id, label, {
+    height = opts.height or 30,
+    size = opts.size or 11,
+    variant = opts.variant or (opts.danger and "danger" or nil),
+    width = opts.width,
+    flex_grow = opts.flex_grow,
+    action = opts.action,
+    layout = opts.layout,
+    ink = opts.ink,
+  })
+  button.role = "button"
+  button.label = tostring(label or "")
+  button.description = opts.description
+  button.shortcut = opts.shortcut
+  button.confirm = opts.confirm == true
+  button.danger = opts.danger == true
+  button.pending = opts.pending == true
+  button.disabled = opts.disabled == true
+  button.disabled_reason = opts.disabled_reason
+  button.checked = opts.checked
+  button.help = opts.help
+  button.priority = opts.priority
+  button.a11y = {
+    role = "button",
+    label = tostring(label or ""),
+    description = opts.description,
+    shortcut = opts.shortcut,
+    disabled = opts.disabled == true,
+    disabled_reason = opts.disabled_reason,
+    checked = opts.checked,
+    pending = opts.pending == true,
+  }
+  return button
+end
+
+--- A top-level accessible action bar.
+---
+--- `actions` is a list of action-button specs, already-built nodes, separators
+--- (`{ separator = true }`) or spacers (`{ spacer = true }`). The host owns
+--- placement, focus order, overflow, shortcut dispatch and confirmation UI.
+function ui.action_bar(id, actions, opts)
+  opts = opts or {}
+  local children = {}
+  for index, action in ipairs(actions or {}) do
+    if action and action.kind then
+      ui.push(children, action)
+    elseif action and action.separator then
+      ui.push(children, ui.rule(id .. "-separator-" .. index, {
+        width = 1,
+        height = opts.separator_height or 18,
+        margin = { left = 4, right = 4 },
+      }))
+    elseif action and action.spacer then
+      ui.push(children, ui.spacer(id .. "-spacer-" .. index, { flex_grow = 1 }))
+    elseif action then
+      ui.push(children, ui.action_button(id .. "-" .. (action.id or index), action.label or "", action))
+    end
+  end
+  local bar = ui.row(id, {
+    height = opts.height or 36,
+    gap = opts.gap or 6,
+    padding = opts.padding or { left = 10, right = 10, top = 3, bottom = 3 },
+    align_items = "center",
+  }, children)
+  bar.role = "toolbar"
+  bar.label = opts.label or "Actions"
+  bar.orientation = opts.orientation or "horizontal"
+  bar.overflow = opts.overflow or "menu"
+  bar.a11y = {
+    role = "toolbar",
+    label = bar.label,
+    orientation = bar.orientation,
+  }
+  return bar
+end
+
 --- A named extension point. Recipes may replace the fallback at this name.
 function ui.slot(name, fallback)
   fallback = fallback or ui.container(name, {})
