@@ -43,9 +43,10 @@ local present = c:present()  -- portable soil_scene document
 | --- | --- |
 | `c:line(opts)` | `points = { {x,y}, ... }`, `ink`, `width`, `join`, `label` |
 | `c:area(opts)` | line points plus `fill_opacity`; fill drops to zero |
-| `c:scatter(opts)` | `points`, `size`, `ink`, `label` |
+| `c:scatter(opts)` | `points`, `size`, `ink`, `opacity`, `label` |
 | `c:bar(opts)` | `values = { number, ... }`, `labels`, `ink` |
-| `c:heatmap(opts)` | `rows`, `cols`, row-major `values`, optional `ink` |
+| `c:heatmap(opts)` | `rows`, `cols`, row-major `values`, optional `min`/`max` |
+| `c:candles(opts)` | `candles = { {x,open,high,low,close}, ... }`, `up_ink`, `down_ink` |
 
 ## Axes
 
@@ -55,7 +56,20 @@ y = { min = 0, max = 200 }
 ```
 
 `min`/`max` are inferred from the series when omitted. `padding`, `grid`,
-`legend`, `max_points`, `title`, and `subtitle` are chart options.
+`legend`, `max_points`, `title`, `subtitle`, `crosshair`, and `annotations` are
+chart options.
+
+```lua
+local c = chart.new {
+  crosshair = { x = 12, y = 48 },
+  annotations = {
+    { x = 9, y = 54, label = "deploy", ink = "warning" },
+  },
+}
+```
+
+`crosshair` is host-driven: a Spore supplies the data coordinate, the SDK draws
+the guide lines and labels. Pointer routing still belongs to Canvas.
 
 ## On-the-fly charts
 
@@ -76,9 +90,34 @@ end
 Line series emit a single `polyline` scene node per series. The GPU renderer
 draws the stroke as quads plus native joins; `join = "miter" | "round" | "bevel"`
 defaults to `round` for chart lines, with `miter_limit` limiting sharp miters.
-Area series add a single `area` node and fill to zero.
+Area series add a single `area` node and fill to zero. Scatter emits one
+`points` node, heatmaps one `heatmap` node, and OHLC series one `candles` node,
+so dense catalog views do not pay one scene node per mark.
 
 Series above `max_points` (default 1200, override per series) are downsampled
 with Largest-Triangle-Three-Buckets before projection. LTTB runs in Lua, keeps
 the endpoints, and preserves the visually dominant point in each bucket. There
 is no TypeScript runtime and no second chart ABI.
+
+
+## Churn and warmup
+
+`chart.window(points, count)` returns the newest `count` points without mutating
+the snapshot. Use it for streaming charts:
+
+```lua
+local c = chart.new { max_points = 240 }
+c:line { points = chart.window(snapshot.samples, 240) }
+```
+
+## Live demo
+
+`tools/chart_animate.sh` runs the catalog against Canvas with sin/random data:
+
+```sh
+tools/chart_animate.sh
+```
+
+It writes `line`, `scatter`, `heatmap`, `dense`, and `candle` scenes under
+`/tmp/fungos-chart-demo`, then `soil-scene-gpu --watch` republishes each frame.
+No TypeScript runtime is involved.

@@ -6,8 +6,8 @@
 --   c:render()
 --
 -- The module is pure: the caller supplies points and the host supplies viewport,
--- theme and layout. Lines are emitted as bounded scene primitives today; a
--- native chart pipeline can replace the painter without changing this API.
+-- theme and layout. Lines, areas, points, heatmaps and candles are emitted as
+-- bounded scene primitives; the GPU renderer draws them without a second ABI.
 
 local ui = require("fungos.ui")
 
@@ -43,6 +43,8 @@ chart.defaults = {
   grid = 5,
   legend = true,
   max_points = 1200,
+  crosshair = nil,
+  annotations = nil,
   title = nil,
   subtitle = nil,
   x = { label = nil, min = nil, max = nil, format = nil },
@@ -115,6 +117,17 @@ end
 
 chart.lttb = lttb
 
+--- Keep the most recent `count` points. Streaming belongs to the snapshot; this
+-- is the pure windowing helper a live view calls before handing points to a chart.
+function chart.window(points, count)
+  points = points or {}
+  count = math.max(1, math.floor(count or 240))
+  local out = {}
+  local first = math.max(1, #points - count + 1)
+  for index = first, #points do out[#out + 1] = points[index] end
+  return out
+end
+
 --- Add a line series. `points` is `{ {x=,y=}, ... }` or `{ {x,y}, ... }`.
 function methods:line(opts)
   opts = copy(opts or {})
@@ -174,6 +187,17 @@ function methods:heatmap(opts)
   return self
 end
 
+--- Add OHLC candles. Each entry is `{x=,open=,high=,low=,close=}`.
+function methods:candles(opts)
+  opts = copy(opts or {})
+  opts.kind = "candles"
+  opts.up_ink = opts.up_ink or "success"
+  opts.down_ink = opts.down_ink or "danger"
+  opts.candles = opts.candles or {}
+  self.series[#self.series + 1] = opts
+  return self
+end
+
 local function finite(value)
   return type(value) == "number" and value == value and value ~= math.huge and value ~= -math.huge
 end
@@ -182,7 +206,11 @@ local function bounds(series, axis)
   local lo, hi
   for _, item in ipairs(series) do
     if item.kind == "heatmap" then
-      lo, hi = 0, math.max(1, (item.rows or 1) - 1)
+      if axis == "x" then
+        lo, hi = 0, math.max(1, (item.cols or 1) - 1)
+      else
+        lo, hi = 0, math.max(1, (item.rows or 1) - 1)
+      end
     elseif item.kind == "bar" then
       for index, value in ipairs(item.values or {}) do
         value = tonumber(value) or 0
@@ -190,6 +218,22 @@ local function bounds(series, axis)
         hi = hi and math.max(hi, value) or value
         lo = lo and math.min(lo, index) or index
         hi = hi and math.max(hi, index) or index
+      end
+    elseif item.kind == "candles" then
+      for _, candle in ipairs(item.candles or {}) do
+        local value
+        if axis == "x" then
+          value = tonumber(candle.x) or 0
+        else
+          local low = tonumber(candle.low) or 0
+          local high = tonumber(candle.high) or 0
+          lo = lo and math.min(lo, low) or low
+          hi = hi and math.max(hi, high) or high
+        end
+        if value then
+          lo = lo and math.min(lo, value) or value
+          hi = hi and math.max(hi, value) or value
+        end
       end
     else
       for _, point in ipairs(item.points or {}) do
@@ -320,13 +364,14 @@ function methods:render(surface)
         end
       end
     elseif item.kind == "scatter" then
-      for point_index, point in ipairs(item.points) do
+      local screen = {}
+      for _, point in ipairs(item.points) do
         local x, y = sx(point.x), sy(point.y)
         if x >= left and x <= left + plot_w and y >= top and y <= top + plot_h then
-          surface:rect(key .. "-" .. point_index, x - item.size * 0.5, y - item.size * 0.5,
-            item.size, item.size, item.ink, 0.9, item.size)
+          screen[#screen + 1] = { x, y }
         end
       end
+      surface:points(key, screen, item.size, item.ink, item.opacity or 0.9)
     elseif item.kind == "bar" then
       local count = math.max(1, #item.values)
       local slot = plot_w / count
@@ -340,21 +385,56 @@ function methods:render(surface)
       end
     elseif item.kind == "heatmap" then
       local rows, cols = math.max(1, item.rows), math.max(1, item.cols)
-      local cw, ch = plot_w / cols, plot_h / rows
+      local values = {}
       local lo, hi = math.huge, -math.huge
       for _, value in ipairs(item.values) do
         value = tonumber(value) or 0
+        values[#values + 1] = value
         lo, hi = math.min(lo, value), math.max(hi, value)
       end
       if lo == hi then hi = lo + 1 end
-      for row = 1, rows do
-        for col = 1, cols do
-          local value = tonumber(item.values[(row - 1) * cols + col]) or 0
-          surface:rect(key .. "-" .. row .. "-" .. col,
-            left + (col - 1) * cw, top + (row - 1) * ch, cw + 0.5, ch + 0.5,
-            ink_for(item, value, lo, hi), 0.9, 0)
+      surface:heatmap(key, values, rows, cols, left, top, plot_w, plot_h,
+        item.min or lo, item.max or hi, item.opacity or 0.9)
+    elseif item.kind == "candles" then
+      local screen = {}
+      local slot = plot_w / math.max(1, #item.candles)
+      for _, candle in ipairs(item.candles) do
+        local x = sx(tonumber(candle.x) or 0)
+        if x >= left - slot and x <= left + plot_w + slot then
+          screen[#screen + 1] = {
+            x = x,
+            open = sy(tonumber(candle.open) or 0),
+            high = sy(tonumber(candle.high) or 0),
+            low = sy(tonumber(candle.low) or 0),
+            close = sy(tonumber(candle.close) or 0),
+          }
         end
       end
+      surface:candles(key, screen, math.max(2, slot * 0.62), item.up_ink, item.down_ink, item.opacity or 1.0)
+    end
+  end
+
+  if o.crosshair then
+    local cx, cy = o.crosshair.x, o.crosshair.y
+    if finite(cx) then
+      local x = sx(cx)
+      surface:rect("chart-crosshair-x", x, top, 1, plot_h, "text", 0.28, 0)
+      local label = o.crosshair.x_label or format_number(cx)
+      surface:text("chart-crosshair-x-label", label, x + 4, top + 4, 9, "text")
+    end
+    if finite(cy) then
+      local y = sy(cy)
+      surface:rect("chart-crosshair-y", left, y, plot_w, 1, "text", 0.28, 0)
+      local label = o.crosshair.y_label or format_number(cy)
+      surface:text("chart-crosshair-y-label", label, left + plot_w - 38, y - 12, 9, "text")
+    end
+  end
+
+  for index, note in ipairs(o.annotations or {}) do
+    local x, y = sx(tonumber(note.x) or 0), sy(tonumber(note.y) or 0)
+    surface:rect("chart-note-" .. index, x - 2, y - 2, 4, 4, note.ink or "warning", 1.0, 2)
+    if note.label then
+      surface:text("chart-note-label-" .. index, note.label, x + 6, y - 14, 9, note.ink or "warning")
     end
   end
 

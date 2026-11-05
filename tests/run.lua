@@ -141,6 +141,27 @@ end
 ok(spike, "lttb keeps a dominant spike")
 ok(#chart.lttb(dense, 6000) == 5000, "lttb leaves small series alone")
 
+local catalog = chart.new {
+  title = "Catalog", width = 500, height = 340,
+  crosshair = { x = 1, y = 2 },
+  annotations = { { x = 1, y = 3, label = "note" } },
+}
+catalog:scatter { id = "cloud", points = { { 0, 1 }, { 1, 2 }, { 2, 1 } }, size = 4 }
+catalog:heatmap { id = "field", rows = 2, cols = 2, values = { 0, 1, 2, 3 } }
+catalog:candles { id = "ohlc", candles = {
+  { x = 1, open = 2, high = 4, low = 1, close = 3 },
+  { x = 2, open = 3, high = 5, low = 2, close = 2.5 },
+} }
+local catalog_present = catalog:present()
+local catalog_types = {}
+for _, node in ipairs(catalog_present.nodes) do catalog_types[node.type] = true end
+ok(catalog_types.points, "scatter emits one points primitive")
+ok(catalog_types.heatmap, "heatmap emits one heatmap primitive")
+ok(catalog_types.candles, "candles emit one candles primitive")
+ok(catalog_types.rect, "crosshair and annotations use ordinary scene primitives")
+local windowed = chart.window({ { 1 }, { 2 }, { 3 }, { 4 } }, 2)
+ok(#windowed == 2 and windowed[1][1] == 3 and windowed[2][1] == 4, "window keeps the newest points")
+
 -- A view that calls ui.surface can be captured as a portable soil_scene
 -- payload without calling canvas.rect/text or widget.hit.
 _G.canvas = {

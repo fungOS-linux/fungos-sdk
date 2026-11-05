@@ -869,6 +869,65 @@ function ui.scene_surface(width, height, theme)
     }
   end
 
+  function surface:points(id, points, size, ink, opacity)
+    local out = {}
+    for _, point in ipairs(points or {}) do
+      out[#out + 1] = { self:nx(point[1]), self:ny(point[2]) }
+    end
+    if #out == 0 then return end
+    size = math.max(1, size or 3)
+    self.scene.nodes[#self.scene.nodes + 1] = {
+      id = self:unique(id),
+      transform = { translation = { 0, 0, self.z }, scale = { 1, 1, 1 } },
+      type = "points",
+      points = out,
+      size = { self:sw(size), self:sh(size) },
+      ink = ink or "primary",
+      opacity = opacity == nil and 1.0 or opacity,
+    }
+  end
+
+  function surface:heatmap(id, values, rows, cols, x, y, width, height, min, max, opacity)
+    self.scene.nodes[#self.scene.nodes + 1] = {
+      id = self:unique(id),
+      transform = {
+        translation = { self:nx(x), self:ny(y), self.z },
+        scale = { self:sw(width), self:sh(height), 1 },
+      },
+      type = "heatmap",
+      rows = rows,
+      cols = cols,
+      values = values,
+      min = min,
+      max = max,
+      opacity = opacity == nil and 0.9 or opacity,
+    }
+  end
+
+  function surface:candles(id, candles, width, up_ink, down_ink, opacity)
+    local out = {}
+    for _, candle in ipairs(candles or {}) do
+      out[#out + 1] = {
+        x = self:nx(candle.x),
+        open = self:ny(candle.open),
+        high = self:ny(candle.high),
+        low = self:ny(candle.low),
+        close = self:ny(candle.close),
+      }
+    end
+    if #out == 0 then return end
+    self.scene.nodes[#self.scene.nodes + 1] = {
+      id = self:unique(id),
+      transform = { translation = { 0, 0, self.z }, scale = { 1, 1, 1 } },
+      type = "candles",
+      candles = out,
+      width = self:sw(math.max(1, width or 4)),
+      up_ink = up_ink or "success",
+      down_ink = down_ink or "danger",
+      opacity = opacity == nil and 1.0 or opacity,
+    }
+  end
+
   function surface:find(laid, id)
     return ui.find(laid, id)
   end
@@ -992,6 +1051,44 @@ function ui.surface(width, height, theme)
         self:rect(id .. "-" .. index .. "-" .. step, x, math.min(y, baseline), 1,
           math.max(1, math.abs(baseline - y)), ink or "primary", opacity == nil and 0.18 or opacity, 0)
       end
+    end
+  end
+
+  function surface:points(id, points, size, ink, opacity)
+    for index, point in ipairs(points or {}) do
+      self:rect(id .. "-" .. index, point[1] - size * 0.5, point[2] - size * 0.5,
+        size, size, ink or "primary", opacity == nil and 1.0 or opacity, size * 0.5)
+    end
+  end
+
+  function surface:heatmap(id, values, rows, cols, x, y, width, height, min, max, opacity)
+    local cw, ch = width / cols, height / rows
+    local lo, hi = min, max
+    if not lo or not hi then
+      lo, hi = math.huge, -math.huge
+      for _, value in ipairs(values or {}) do
+        lo, hi = math.min(lo, value), math.max(hi, value)
+      end
+    end
+    if lo == hi then hi = lo + 1 end
+    for row = 1, rows do
+      for col = 1, cols do
+        local value = values[(row - 1) * cols + col]
+        local t = (value - lo) / (hi - lo)
+        local color = t >= 0.75 and "danger" or t >= 0.5 and "warning" or t >= 0.25 and "success" or "primary"
+        self:rect(id .. "-" .. row .. "-" .. col, x + (col - 1) * cw, y + (row - 1) * ch,
+          cw + 0.5, ch + 0.5, color, opacity == nil and 0.9 or opacity, 0)
+      end
+    end
+  end
+
+  function surface:candles(id, candles, width, up_ink, down_ink, opacity)
+    for index, candle in ipairs(candles or {}) do
+      local color = candle.close >= candle.open and (up_ink or "success") or (down_ink or "danger")
+      self:line(id .. "-wick-" .. index, candle.x, candle.high, candle.x, candle.low, 1, color, opacity)
+      local top, bottom = math.min(candle.open, candle.close), math.max(candle.open, candle.close)
+      self:rect(id .. "-body-" .. index, candle.x - width * 0.5, top, width,
+        math.max(1, bottom - top), color, opacity == nil and 1.0 or opacity, 0)
     end
   end
 

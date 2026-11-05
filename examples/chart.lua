@@ -18,15 +18,23 @@ function M.render(snapshot)
     y = { label = "ms" },
   }
   for _, series in ipairs(snapshot.series or {}) do
-    local method = series.kind == "area" and c.area or c.line
-    method(c, {
-      id = series.id,
-      label = series.label,
-      ink = series.ink,
-      points = series.points,
-      width = series.width or 2,
-      fill_opacity = series.fill_opacity,
-    })
+    if series.kind == "scatter" then
+      c:scatter(series)
+    elseif series.kind == "heatmap" then
+      c:heatmap(series)
+    elseif series.kind == "candles" then
+      c:candles(series)
+    else
+      local method = series.kind == "area" and c.area or c.line
+      method(c, {
+        id = series.id,
+        label = series.label,
+        ink = series.ink,
+        points = series.points,
+        width = series.width or 2,
+        fill_opacity = series.fill_opacity,
+      })
+    end
   end
   c:render()
 end
@@ -39,8 +47,16 @@ function M.present(snapshot)
     height = 520,
   }
   for _, series in ipairs((snapshot or {}).series or {}) do
-    local method = series.kind == "area" and c.area or c.line
-    method(c, { id = series.id, label = series.label, ink = series.ink, points = series.points, width = series.width or 2, fill_opacity = series.fill_opacity })
+    if series.kind == "scatter" then
+      c:scatter(series)
+    elseif series.kind == "heatmap" then
+      c:heatmap(series)
+    elseif series.kind == "candles" then
+      c:candles(series)
+    else
+      local method = series.kind == "area" and c.area or c.line
+      method(c, { id = series.id, label = series.label, ink = series.ink, points = series.points, width = series.width or 2, fill_opacity = series.fill_opacity })
+    end
   end
   return c:present()
 end
