@@ -103,13 +103,9 @@ local function list(ctx, snapshot)
   for index = first, last do
     local thread = threads[index]
     if thread then
-      local fallback = thread_row(ctx, thread, index, index == selected_index)
-      ui.push(children, ui.component("dev.fungos.mail/thread-row", {
-        id = "thread-" .. index,
-        thread = thread,
-        index = index,
-        selected = index == selected_index,
-      }, nil, fallback))
+      -- The example is self-contained; a composed app may replace this row
+      -- through the `dev.fungos.mail/thread-row` component slot.
+      ui.push(children, thread_row(ctx, thread, index, index == selected_index))
     end
   end
 

@@ -64,6 +64,10 @@ ui.defaults = {
 -- The active profile is installed once per composed Spore UI module.
 ui.profile = copy(ui.defaults)
 
+--- When set, `ui.surface` returns a recording surface instead of calling the
+--- Canvas draw ABI. A GPU/replay host installs this around a view's render.
+ui.backend = nil
+
 --- Install a user/app profile. The profile is data, never authority.
 function ui.configure(profile, app_id)
   ui.profile = copy(ui.defaults)
@@ -755,11 +759,124 @@ function ui.find(laid, id)
   end
 end
 
+--- A recording surface that emits a `soil_scene` document plus hit targets.
+---
+--- This is the portable form of `ui.surface`: no `canvas.*`, no `widget.*`, no
+--- host globals. A GPU renderer or a test can capture the same view the Canvas
+--- path draws, without linking the compositor.
+function ui.scene_surface(width, height, theme)
+  local surface = {
+    width = width,
+    height = height,
+    theme = theme or ui.theme(),
+    z = 0,
+    scene = { schema = 1, nodes = {}, transparent = false },
+    hits = {},
+    used = {},
+  }
+
+  local base = surface.theme.body or 16
+
+  function surface:nx(px) return -4 + 8 * px / self.width end
+  function surface:ny(px) return 4 - 8 * px / self.height end
+  function surface:sw(px) return 8 * px / self.width end
+  function surface:sh(px) return 8 * px / self.height end
+  function surface:ts(px) return px / (base * 1.25) end
+
+  function surface:unique(id)
+    id = tostring(id or "node")
+    if id == "" then id = "node" end
+    if id:find("[\128-\255]") then id = "node" end
+    local seen = self.used[id] or 0
+    self.used[id] = seen + 1
+    if seen == 0 then return id end
+    return id .. "~" .. seen
+  end
+
+  function surface:rect(id, x, y, w, h, ink, opacity, radius, z)
+    self.scene.nodes[#self.scene.nodes + 1] = {
+      id = self:unique(id),
+      transform = {
+        translation = { self:nx(x), self:ny(y), z or self.z },
+        scale = { self:sw(math.max(1, w)), self:sh(math.max(1, h)), 1 },
+      },
+      type = "rect",
+      ink = ink or "surface",
+      opacity = opacity == nil and 1.0 or opacity,
+      radius = radius or 0,
+    }
+  end
+
+  function surface:text(id, value, x, y, size, ink, z)
+    self.scene.nodes[#self.scene.nodes + 1] = {
+      id = self:unique(id),
+      transform = {
+        translation = { self:nx(x), self:ny(y), z or (self.z + 0.1) },
+        scale = { self:ts(size), self:ts(size), 1 },
+      },
+      type = "text",
+      text = tostring(value or ""),
+      ink = ink or "text",
+      opacity = 1.0,
+    }
+  end
+
+  function surface:find(laid, id)
+    return ui.find(laid, id)
+  end
+
+  function surface:hit(id, rect, label)
+    if rect.width <= 0 or rect.height <= 0
+      or rect.x < -0.5 or rect.y < -0.5
+      or rect.x + rect.width > self.width + 0.5
+      or rect.y + rect.height > self.height + 0.5 then
+      return false
+    end
+    self.hits[#self.hits + 1] = {
+      id = tostring(id),
+      label = label or "hit",
+      x = self:nx(rect.x),
+      y = self:ny(rect.y),
+      width = self:sw(rect.width),
+      height = self:sh(rect.height),
+    }
+    return true
+  end
+
+  function surface:background(ink)
+    self:rect("surface-bg", 0, 0, self.width, self.height, ink or "background", 1.0, 0, -1)
+  end
+
+  return surface
+end
+
+--- Capture a view that calls `ui.surface` into a portable scene document.
+---
+--- `paint(surface)` usually calls the view's render function. The return value
+--- is `(present, hits)` where `present` is a `soil_scene::Present::Scene`
+--- payload and `hits` are normalized local target rectangles.
+function ui.capture(width, height, theme, paint)
+  local previous = ui.backend
+  local surface = ui.scene_surface(width, height, theme)
+  ui.backend = surface
+  local ok, err = pcall(paint, surface)
+  ui.backend = previous
+  if not ok then error(err, 0) end
+  local present = {
+    kind = "scene",
+    schema = surface.scene.schema,
+    nodes = surface.scene.nodes,
+    transparent = surface.scene.transparent,
+  }
+  return present, surface.hits
+end
+
 --- A tiny scene surface in logical pixels.
 ---
 --- Surface coordinates are top-left origin. It converts to Canvas's normalized
 --- space, so views never hand-write the -4..4 math.
 function ui.surface(width, height, theme)
+  if ui.backend then return ui.backend end
   local surface = {
     width = width,
     height = height,

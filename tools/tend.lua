@@ -11,6 +11,7 @@
 --
 --   tend check ui/inbox.lua examples/inbox_snapshot.lua
 --   tend doctor ui/inbox.lua --snapshot examples/inbox_snapshot.lua
+--   tend --scene /tmp/scene.json ui/inbox.lua examples/inbox_snapshot.lua
 --
 -- The generated module contains the SDK modules, the view, the snapshot, and
 -- the resolved user profile. It uses a tiny require shim because Canvas does
@@ -186,13 +187,51 @@ local function flatten(node, x, y, width, height, out)
   end
 end
 
-local function preflight(source, name, options)
-  if options.preflight == false then return end
-  local validate = dofile(join(options.sdk, "lua/fungos/validate.lua"))
+local function json_escape(value)
+  return '"' .. tostring(value):gsub('[%z\1-\31\\"]', function(char)
+    local map = { ['"'] = '\"', ['\\'] = '\\\\', ['\b'] = '\\b', ['\f'] = '\\f', ['\n'] = '\\n', ['\r'] = '\\r', ['\t'] = '\\t' }
+    return map[char] or string.format('\\u%04x', char:byte())
+  end) .. '"'
+end
+
+local function json(value, array_hint)
+  local kind = type(value)
+  if kind == "nil" then return "null" end
+  if kind == "boolean" then return value and "true" or "false" end
+  if kind == "number" then
+    if value ~= value or value == math.huge or value == -math.huge then error("non-finite JSON number") end
+    return tostring(value)
+  end
+  if kind == "string" then return json_escape(value) end
+  if kind ~= "table" then error("cannot encode " .. kind .. " as JSON") end
+  local array = true
+  local count = 0
+  for key in pairs(value) do
+    count = count + 1
+    if type(key) ~= "number" or key < 1 or key % 1 ~= 0 then array = false end
+  end
+  if (array and (count > 0 or array_hint)) then
+    local out = {}
+    for index = 1, count do out[index] = json(value[index]) end
+    return "[" .. table.concat(out, ",") .. "]"
+  end
+  local keys = {}
+  for key in pairs(value) do keys[#keys + 1] = tostring(key) end
+  table.sort(keys)
+  local out = {}
+  for _, key in ipairs(keys) do
+    local child_hint = key == "children" or key == "nodes" or key == "hits"
+    out[#out + 1] = json_escape(key) .. ":" .. json(value[key], child_hint)
+  end
+  return "{" .. table.concat(out, ",") .. "}"
+end
+
+local function host_env(options)
   local width = tonumber(options.width) or 1200
   local height = tonumber(options.height) or 900
   local now = os.time()
   local civil = os.date("*t", now)
+  local validate = dofile(join(options.sdk, "lua/fungos/validate.lua"))
   local env = {
     module = {
       viewport = { width = width, height = height },
@@ -207,9 +246,23 @@ local function preflight(source, name, options)
     canvas = {
       layout = function(tree, available_width, available_height)
         validate.tree(tree)
+        local w, h = available_width or width, available_height or height
+        local command = os.getenv("SOIL_LAYOUT")
+        if command and command ~= "" then
+          local input = os.tmpname()
+          local file = assert(io.open(input, "wb"), "cannot write layout input")
+          file:write(json(tree))
+          file:close()
+          local pipe = assert(io.popen(string.format("%s --input %q --width %s --height %s --lua", command, input, w, h), "r"))
+          local output = pipe:read("*a")
+          pipe:close()
+          os.remove(input)
+          local laid = assert(load(output, "@soil-layout"))()
+          return laid
+        end
         local nodes = {}
-        flatten(tree, 0, 0, available_width or width, available_height or height, nodes)
-        return { root = { x = 0, y = 0, width = available_width or width, height = available_height or height }, nodes = nodes }
+        flatten(tree, 0, 0, w, h, nodes)
+        return { root = { x = 0, y = 0, width = w, height = h }, nodes = nodes }
       end,
       measure_text = function(text, style)
         local size = (style and style.size) or 16
@@ -246,7 +299,40 @@ local function preflight(source, name, options)
   }
   for key, value in pairs(standard) do env[key] = value end
   env._G = env
+  return env
+end
 
+local function capture(source, name, options)
+  local env = host_env(options)
+  local chunk, load_error = load(source, "@" .. name, "t", env)
+  if not chunk then
+    io.stderr:write("tend: scene load failed: " .. tostring(load_error) .. "\n")
+    os.exit(2)
+  end
+  local ok, present, hits = pcall(chunk)
+  if not ok then
+    io.stderr:write("tend: scene failed: " .. tostring(present) .. "\n")
+    os.exit(2)
+  end
+  if type(present) ~= "table" or present.kind ~= "scene" then
+    io.stderr:write("tend: view did not return a soil_scene present\n")
+    os.exit(2)
+  end
+  local path = options.scene
+  local file = assert(io.open(path, "wb"), "cannot write " .. path)
+  file:write(json(present))
+  file:close()
+  local hits_path = path .. ".hits.json"
+  file = assert(io.open(hits_path, "wb"), "cannot write " .. hits_path)
+  file:write(json(hits or {}, true))
+  file:close()
+  print(string.format("tend: wrote %s (%d nodes, %d hits)", path, #(present.nodes or {}), #(hits or {})))
+end
+
+local function preflight(source, name, options)
+  if options.preflight == false then return end
+  local validate = dofile(join(options.sdk, "lua/fungos/validate.lua"))
+  local env = host_env(options)
   local chunk, load_error = load(source, "@" .. name, "t", env)
   if not chunk then
     io.stderr:write("tend: preflight load failed: " .. tostring(load_error) .. "\n")
@@ -307,11 +393,20 @@ local function compose(options)
     "if type(view) ~= 'table' or type(view.render) ~= 'function' then",
     "  error('view must return a function or a module with render(snapshot)')",
     "end",
+    "if __scene_capture then",
+    "  local present, hits = __ui.capture(" .. (tonumber(options.width) or 1200) .. ", " .. (tonumber(options.height) or 900) .. ", __ui.theme(), function() view.render(snapshot) end)",
+    "  return present, hits",
+    "end",
     "view.render(snapshot)",
     "",
   }, "\n")
 
   local name = options.name
+  if options.scene then
+    local source = composed:gsub("__scene_capture", "true")
+    capture(source, name, options)
+    return
+  end
   preflight(composed, name, options)
   if options.check then
     print("tend: check ok")

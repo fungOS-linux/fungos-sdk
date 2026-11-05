@@ -109,6 +109,38 @@ config.order_children(children, { "a", "b" })
 ok(children[1].id == "a" and children[2].id == "b" and children[3].id == "c", "order should rank listed ids first")
 
 
+-- A view that calls ui.surface can be captured as a portable soil_scene
+-- payload without calling canvas.rect/text or widget.hit.
+_G.canvas = {
+  layout = function(_, width, height)
+    return {
+      nodes = {
+        { id = "title", kind = "text", text = "Captured", style = { size = 16 },
+          rect = { x = 10, y = 12, width = 160, height = 20 } },
+        { id = "underline", kind = "rule", rect = { x = 10, y = 36, width = 160, height = 1 } },
+      },
+    }
+  end,
+}
+_G.widget = { hit = function() error("capture must not call widget.hit") end }
+local present, hits = ui.capture(800, 600, { body = 16 }, function(surface)
+  surface = surface or ui.surface(800, 600, { body = 16 })
+  surface:background("background")
+  local laid = ui.layout({ id = "root", kind = "container" }, 800, 600)
+  ui.paint_text(surface, laid)
+  surface:rect("accent", 20, 20, 30, 30, "primary", 0.5, 4)
+  surface:hit("accent", { x = 20, y = 20, width = 30, height = 30 })
+end)
+ok(present.kind == "scene", "capture should return a scene present")
+ok(present.schema == 1, "capture should use the soil scene schema")
+ok(#present.nodes == 3, "capture should include background, text and rect")
+ok(present.nodes[1].type == "rect" and present.nodes[1].ink == "background", "background is a rect node")
+ok(present.nodes[2].type == "text" and present.nodes[2].text == "Captured", "text is a text node")
+ok(present.nodes[2].transform.scale[1] > 0, "text carries a scale, not a font size")
+ok(present.nodes[3].type == "rect" and present.nodes[3].opacity == 0.5, "rect carries opacity")
+ok(#hits == 1 and hits[1].id == "accent", "hit targets are captured beside the scene")
+ok(hits[1].x < 0 and hits[1].width > 0, "hit target is in normalized space")
+
 -- validator catches the failures Canvas would reject
 local function fails(fn, needle)
   local passed, err = pcall(fn)

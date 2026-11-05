@@ -70,6 +70,24 @@ preview module, runs a fake-host preflight, and only then writes/reloads Canvas.
 The preflight catches sparse child arrays, duplicate ids, invalid kinds, empty or
 non-printable scene text, non-finite geometry, and malformed scene calls.
 
+## GPU scene capture
+
+`ui.capture(width, height, theme, paint)` runs a view that uses `ui.surface` and
+returns a portable `soil_scene` document plus normalized hit targets. It never
+calls `canvas.rect`, `canvas.text`, or `widget.hit`.
+
+`tend --scene /tmp/view.json` writes that document. Set `SOIL_LAYOUT` to the
+`soil-layout` binary to use real Taffy geometry instead of the preview fallback:
+
+```sh
+SOIL_LAYOUT=../soil/target/debug/soil-layout \
+  tend --scene /tmp/calendar.json --width 1000 --height 900 \
+  examples/calendar/calendar.lua examples/calendar/live.lua
+```
+
+A host with a GPU scene renderer can present the result as a Spore-owned texture.
+The Lua UI remains a pure projection; layout and pixels still belong to the host.
+
 ## User repos
 
 The intended user setup is two repos:
