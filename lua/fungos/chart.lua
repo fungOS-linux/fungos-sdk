@@ -241,18 +241,20 @@ function methods:render(surface)
   for index, item in ipairs(self.series) do
     local key = item.id or ("series-" .. index)
     if item.kind == "line" then
-      local previous
-      local segment = 0
+      local screen = {}
       for _, point in ipairs(item.points) do
-        if previous then
-          local x1, y1 = sx(previous.x), sy(previous.y)
-          local x2, y2 = sx(point.x), sy(point.y)
-          if x1 >= left - 1 and x1 <= left + plot_w + 1 and x2 >= left - 1 and x2 <= left + plot_w + 1 then
-            segment = segment + 1
-            surface:line(key .. "-" .. segment, x1, y1, x2, y2, item.width, item.ink, 1.0)
-          end
+        local x, y = sx(point.x), sy(point.y)
+        if x >= left - 1 and x <= left + plot_w + 1 then
+          screen[#screen + 1] = { x, y }
         end
-        previous = point
+      end
+      if surface.polyline then
+        surface:polyline(key, screen, item.width, item.ink, 1.0)
+      else
+        for segment = 2, #screen do
+          local a, b = screen[segment - 1], screen[segment]
+          surface:line(key .. "-" .. segment, a[1], a[2], b[1], b[2], item.width, item.ink, 1.0)
+        end
       end
     elseif item.kind == "scatter" then
       for point_index, point in ipairs(item.points) do

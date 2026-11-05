@@ -833,6 +833,23 @@ function ui.scene_surface(width, height, theme)
     end
   end
 
+  function surface:polyline(id, points, width, ink, opacity)
+    local out = {}
+    for _, point in ipairs(points or {}) do
+      out[#out + 1] = { self:nx(point[1]), self:ny(point[2]) }
+    end
+    if #out < 2 then return end
+    self.scene.nodes[#self.scene.nodes + 1] = {
+      id = self:unique(id),
+      transform = { translation = { 0, 0, self.z }, scale = { 1, 1, 1 } },
+      type = "polyline",
+      points = out,
+      width = self:sh(math.max(1, width or 1)),
+      ink = ink or "primary",
+      opacity = opacity == nil and 1.0 or opacity,
+    }
+  end
+
   function surface:find(laid, id)
     return ui.find(laid, id)
   end
@@ -934,6 +951,13 @@ function ui.surface(width, height, theme)
       local t = index / steps
       self:rect(id .. "-" .. index, x1 + dx * t - thick * 0.5, y1 + dy * t - thick * 0.5,
         thick, thick, ink or "primary", opacity == nil and 1.0 or opacity, thick * 0.5)
+    end
+  end
+
+  function surface:polyline(id, points, width, ink, opacity)
+    for index = 2, #(points or {}) do
+      local previous, point = points[index - 1], points[index]
+      self:line(id .. "-" .. index, previous[1], previous[2], point[1], point[2], width, ink, opacity)
     end
   end
 

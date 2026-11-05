@@ -72,5 +72,7 @@ function M.render(snapshot)
 end
 ```
 
-The current painter emits bounded rect/text primitives. A native line/heatmap
-pipeline can replace the painter behind the same Lua API.
+Line series emit a single `polyline` scene node per series, so the GPU renderer
+draws them as triangle strips instead of thousands of one-pixel rects. Version
+one has butt joins and no area fill; the same `c:line` API is the place a native
+miter/area/decimation pipeline will land.
