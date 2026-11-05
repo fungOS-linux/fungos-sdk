@@ -1,57 +1,357 @@
 return {
-  revision = 1,
-  title = "Contacts",
-  search = "",
-  total = 512,
-  organizations = 124,
-  selected_id = "contact-avery",
-  account = { label = "Records · contacts", sync = "live" },
-  filters = {
-    { id = "all", label = "All", count = 512, selected = true },
-    { id = "people", label = "People", count = 388 },
-    { id = "orgs", label = "Organizations", count = 124 },
-    { id = "recent", label = "Recent", count = 18 },
+  ["account"] = {
+    ["label"] = "Records · contacts",
+    ["sync"] = "live"
   },
-  contacts = {
-    { id = "contact-avery", name = "Avery Wagar", org = "Future Present Labs", title = "Founder",
-      emails = { "avery@wagar.cc", "avery.wagar@gmail.com" }, phones = { "+1 (206) 451-7010" },
-      addresses = { "Seattle, WA" }, birthday = "2003-07-06",
-      note = "Prefers concise replies. Timezone: Pacific." },
-    { id = "contact-amy", name = "Amy Ingram", org = "x.ai", title = "AI Scheduling Assistant",
-      emails = { "amy@x.ai", "amy@wagar.cc" }, phones = { "(415) 494-5314" },
-      addresses = {}, birthday = "", note = "" },
-    { id = "contact-andrew", name = "Andrew Ingram", org = "x.ai", title = "AI Scheduling Assistant",
-      emails = { "andrew@x.ai", "andrew@wagar.cc" }, phones = {}, addresses = {}, birthday = "", note = "" },
-    { id = "contact-cher", name = "Cherilyn Swenson", org = "Fine Lines Company", title = "Sales and Account Management",
-      emails = { "cher@kimberlyparry.com" }, phones = { "(505) 690-0176", "(505) 310-5964" },
-      addresses = { "Santa Fe, NM" }, birthday = "1604-01-15", note = "" },
-    { id = "contact-chris", name = "Chris Teitzel", org = "Lockr.io", title = "Founder / CEO",
-      emails = { "chris@lockr.io", "chris@cellar-door.io" }, phones = { "(253) 732-9560" },
-      addresses = { "Seattle, WA", "Tacoma, WA" }, birthday = "", note = "" },
-    { id = "contact-cindy", name = "Cindy Ball", org = "Oculus VR", title = "Program Manager, Oculus Education",
-      emails = { "cindy.ball@oculus.com", "cindyball100@gmail.com" }, phones = { "(408) 740-7256" },
-      addresses = { "Seattle, WA" }, birthday = "", note = "" },
-    { id = "contact-cj", name = "CJ Markham", org = "StretchSense", title = "Motion Capture Solutions Architect",
-      emails = { "cj@mocapnow.com" }, phones = { "(513) 536-6227", "(425) 495-7218" },
-      addresses = { "Woodinville, WA" }, birthday = "1978-01-12", note = "" },
-    { id = "contact-david", name = "David St John", org = "", title = "",
-      emails = { "smithstjohn@msn.com" }, phones = { "(206) 963-0662" },
-      addresses = { "Seattle, WA" }, birthday = "", note = "" },
-    { id = "contact-kai", name = "Kai Chen", org = "Northstar", title = "Design Lead",
-      emails = { "kai@northstar.example" }, phones = { "(206) 555-0142" },
-      addresses = { "Seattle, WA" }, birthday = "", note = "Met at the hardware meetup." },
-    { id = "contact-maya", name = "Maya Chen", org = "Independent", title = "Product Designer",
-      emails = { "maya@example.com" }, phones = { "+1 (206) 555-0199" },
-      addresses = { "Portland, OR" }, birthday = "", note = "" },
-    { id = "contact-noah", name = "Noah Williams", org = "Cedar & Co", title = "Engineer",
-      emails = { "noah@cedar.example" }, phones = {}, addresses = {}, birthday = "", note = "" },
-    { id = "contact-olivia", name = "Olivia Park", org = "Juniper", title = "Recruiter",
-      emails = { "olivia@juniper.example" }, phones = { "(425) 555-0101" },
-      addresses = { "Bellevue, WA" }, birthday = "", note = "" },
-    { id = "contact-priya", name = "Priya Raman", org = "Aperture", title = "PM",
-      emails = { "priya@aperture.example" }, phones = { "(650) 555-0110" },
-      addresses = { "Palo Alto, CA" }, birthday = "", note = "" },
-    { id = "contact-quinn", name = "Quinn Foster", org = "Basalt", title = "Founder",
-      emails = { "quinn@basalt.example" }, phones = {}, addresses = { "Bend, OR" }, birthday = "", note = "" },
+  ["contacts"] = {
+    {
+      ["addresses"] = {
+        "Seattle, WA"
+      },
+      ["birthday"] = "2003-07-06",
+      ["emails"] = {
+        "avery@wagar.cc",
+        "avery.wagar@gmail.com"
+      },
+      ["favorite"] = true,
+      ["id"] = "contact-avery",
+      ["last_contacted"] = 1759081600000,
+      ["name"] = "Avery Wagar",
+      ["note"] = "Prefers concise replies. Timezone: Pacific.",
+      ["org"] = "Future Present Labs",
+      ["phones"] = {
+        "+1 (206) 451-7010"
+      },
+      ["tags"] = {
+
+      },
+      ["title"] = "Founder"
+    },
+    {
+      ["addresses"] = {
+
+      },
+      ["birthday"] = "",
+      ["emails"] = {
+        "amy@x.ai",
+        "amy@wagar.cc"
+      },
+      ["favorite"] = true,
+      ["id"] = "contact-amy",
+      ["last_contacted"] = 1759373200000,
+      ["name"] = "Amy Ingram",
+      ["note"] = "",
+      ["org"] = "x.ai",
+      ["phones"] = {
+        "(415) 494-5314"
+      },
+      ["tags"] = {
+        "assistant",
+        "scheduling"
+      },
+      ["title"] = "AI Scheduling Assistant"
+    },
+    {
+      ["addresses"] = {
+
+      },
+      ["birthday"] = "",
+      ["emails"] = {
+        "andrew@x.ai",
+        "andrew@wagar.cc"
+      },
+      ["favorite"] = true,
+      ["id"] = "contact-andrew",
+      ["last_contacted"] = 1759664800000,
+      ["name"] = "Andrew Ingram",
+      ["note"] = "",
+      ["org"] = "x.ai",
+      ["phones"] = {
+
+      },
+      ["tags"] = {
+        "assistant",
+        "scheduling"
+      },
+      ["title"] = "AI Scheduling Assistant"
+    },
+    {
+      ["addresses"] = {
+        "Santa Fe, NM"
+      },
+      ["birthday"] = "1604-01-15",
+      ["emails"] = {
+        "cher@kimberlyparry.com"
+      },
+      ["favorite"] = false,
+      ["id"] = "contact-cher",
+      ["last_contacted"] = 1759956400000,
+      ["name"] = "Cherilyn Swenson",
+      ["note"] = "",
+      ["org"] = "Fine Lines Company",
+      ["phones"] = {
+        "(505) 690-0176",
+        "(505) 310-5964"
+      },
+      ["tags"] = {
+
+      },
+      ["title"] = "Sales and Account Management"
+    },
+    {
+      ["addresses"] = {
+        "Seattle, WA",
+        "Tacoma, WA"
+      },
+      ["birthday"] = "",
+      ["emails"] = {
+        "chris@lockr.io",
+        "chris@cellar-door.io"
+      },
+      ["favorite"] = false,
+      ["id"] = "contact-chris",
+      ["last_contacted"] = 1760248000000,
+      ["name"] = "Chris Teitzel",
+      ["note"] = "",
+      ["org"] = "Lockr.io",
+      ["phones"] = {
+        "(253) 732-9560"
+      },
+      ["tags"] = {
+        "security",
+        "founder"
+      },
+      ["title"] = "Founder / CEO"
+    },
+    {
+      ["addresses"] = {
+        "Seattle, WA"
+      },
+      ["birthday"] = "",
+      ["emails"] = {
+        "cindy.ball@oculus.com",
+        "cindyball100@gmail.com"
+      },
+      ["favorite"] = false,
+      ["id"] = "contact-cindy",
+      ["last_contacted"] = 1760539600000,
+      ["name"] = "Cindy Ball",
+      ["note"] = "",
+      ["org"] = "Oculus VR",
+      ["phones"] = {
+        "(408) 740-7256"
+      },
+      ["tags"] = {
+        "vr",
+        "program"
+      },
+      ["title"] = "Program Manager, Oculus Education"
+    },
+    {
+      ["addresses"] = {
+        "Woodinville, WA"
+      },
+      ["birthday"] = "1978-01-12",
+      ["emails"] = {
+        "cj@mocapnow.com"
+      },
+      ["favorite"] = false,
+      ["id"] = "contact-cj",
+      ["last_contacted"] = 1760831200000,
+      ["name"] = "CJ Markham",
+      ["note"] = "",
+      ["org"] = "StretchSense",
+      ["phones"] = {
+        "(513) 536-6227",
+        "(425) 495-7218"
+      },
+      ["tags"] = {
+
+      },
+      ["title"] = "Motion Capture Solutions Architect"
+    },
+    {
+      ["addresses"] = {
+        "Seattle, WA"
+      },
+      ["birthday"] = "",
+      ["emails"] = {
+        "smithstjohn@msn.com"
+      },
+      ["favorite"] = false,
+      ["id"] = "contact-david",
+      ["last_contacted"] = 1761122800000,
+      ["name"] = "David St John",
+      ["note"] = "",
+      ["org"] = "",
+      ["phones"] = {
+        "(206) 963-0662"
+      },
+      ["tags"] = {
+
+      },
+      ["title"] = ""
+    },
+    {
+      ["addresses"] = {
+        "Seattle, WA"
+      },
+      ["birthday"] = "",
+      ["emails"] = {
+        "kai@northstar.example"
+      },
+      ["favorite"] = false,
+      ["id"] = "contact-kai",
+      ["last_contacted"] = 1761414400000,
+      ["name"] = "Kai Chen",
+      ["note"] = "Met at the hardware meetup.",
+      ["org"] = "Northstar",
+      ["phones"] = {
+        "(206) 555-0142"
+      },
+      ["tags"] = {
+
+      },
+      ["title"] = "Design Lead"
+    },
+    {
+      ["addresses"] = {
+        "Portland, OR"
+      },
+      ["birthday"] = "",
+      ["emails"] = {
+        "maya@example.com"
+      },
+      ["favorite"] = false,
+      ["id"] = "contact-maya",
+      ["last_contacted"] = 1761706000000,
+      ["name"] = "Maya Chen",
+      ["note"] = "",
+      ["org"] = "Independent",
+      ["phones"] = {
+        "+1 (206) 555-0199"
+      },
+      ["tags"] = {
+
+      },
+      ["title"] = "Product Designer"
+    },
+    {
+      ["addresses"] = {
+
+      },
+      ["birthday"] = "",
+      ["emails"] = {
+        "noah@cedar.example"
+      },
+      ["favorite"] = false,
+      ["id"] = "contact-noah",
+      ["last_contacted"] = 1761997600000,
+      ["name"] = "Noah Williams",
+      ["note"] = "",
+      ["org"] = "Cedar & Co",
+      ["phones"] = {
+
+      },
+      ["tags"] = {
+
+      },
+      ["title"] = "Engineer"
+    },
+    {
+      ["addresses"] = {
+        "Bellevue, WA"
+      },
+      ["birthday"] = "",
+      ["emails"] = {
+        "olivia@juniper.example"
+      },
+      ["favorite"] = false,
+      ["id"] = "contact-olivia",
+      ["last_contacted"] = 1762289200000,
+      ["name"] = "Olivia Park",
+      ["note"] = "",
+      ["org"] = "Juniper",
+      ["phones"] = {
+        "(425) 555-0101"
+      },
+      ["tags"] = {
+
+      },
+      ["title"] = "Recruiter"
+    },
+    {
+      ["addresses"] = {
+        "Palo Alto, CA"
+      },
+      ["birthday"] = "",
+      ["emails"] = {
+        "priya@aperture.example"
+      },
+      ["favorite"] = false,
+      ["id"] = "contact-priya",
+      ["last_contacted"] = 1758980800000,
+      ["name"] = "Priya Raman",
+      ["note"] = "",
+      ["org"] = "Aperture",
+      ["phones"] = {
+        "(650) 555-0110"
+      },
+      ["tags"] = {
+
+      },
+      ["title"] = "PM"
+    },
+    {
+      ["addresses"] = {
+        "Bend, OR"
+      },
+      ["birthday"] = "",
+      ["emails"] = {
+        "quinn@basalt.example"
+      },
+      ["favorite"] = false,
+      ["id"] = "contact-quinn",
+      ["last_contacted"] = 1759272400000,
+      ["name"] = "Quinn Foster",
+      ["note"] = "",
+      ["org"] = "Basalt",
+      ["phones"] = {
+
+      },
+      ["tags"] = {
+
+      },
+      ["title"] = "Founder"
+    }
   },
+  ["filters"] = {
+    {
+      ["count"] = 512,
+      ["id"] = "all",
+      ["label"] = "All",
+      ["selected"] = true
+    },
+    {
+      ["count"] = 388,
+      ["id"] = "people",
+      ["label"] = "People"
+    },
+    {
+      ["count"] = 124,
+      ["id"] = "orgs",
+      ["label"] = "Organizations"
+    },
+    {
+      ["count"] = 18,
+      ["id"] = "recent",
+      ["label"] = "Recent"
+    }
+  },
+  ["organizations"] = 124,
+  ["revision"] = 1,
+  ["search"] = "",
+  ["selected_id"] = "contact-avery",
+  ["title"] = "Contacts",
+  ["total"] = 512
 }

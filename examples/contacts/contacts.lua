@@ -71,28 +71,123 @@ local function apply_state(snapshot, state)
   end
 end
 
-local function active_filter(snapshot)
+local function contact_favorite(contact)
+  return contact.favorite == true
+end
+
+local function contact_mru(contact)
+  return tonumber(contact.last_contacted) or 0
+end
+
+local function slug(value)
+  value = tostring(value or ""):lower():gsub("[^%w]+", "-"):gsub("^%-+", ""):gsub("%-+$", "")
+  if value == "" then return "unknown" end
+  return value
+end
+
+local function email_domain(contact)
+  local email = contact.emails and contact.emails[1]
+  if not email then return nil end
+  local domain = tostring(email):match("@([^@]+)$")
+  if not domain then return nil end
+  return domain:lower()
+end
+
+local function sorted_contacts(snapshot)
+  local contacts = {}
+  for _, contact in ipairs(snapshot.contacts or {}) do contacts[#contacts + 1] = contact end
+  table.sort(contacts, function(a, b)
+    local af, bf = contact_favorite(a), contact_favorite(b)
+    if af ~= bf then return af end
+    local am, bm = contact_mru(a), contact_mru(b)
+    if am ~= bm then return am > bm end
+    return (a.name or "") < (b.name or "")
+  end)
+  return contacts
+end
+
+local function filter_matches(contact, filter_id)
+  if filter_id == nil or filter_id == "" or filter_id == "all" then return true end
+  if filter_id == "favorites" then return contact_favorite(contact) end
+  if filter_id == "recent" then return contact_mru(contact) > 0 end
+  if filter_id:sub(1, 4) == "org-" then
+    return "org-" .. slug(contact.org) == filter_id
+  end
+  if filter_id:sub(1, 7) == "domain-" then
+    return "domain-" .. slug(email_domain(contact)) == filter_id
+  end
+  if filter_id:sub(1, 4) == "tag-" then
+    local wanted = filter_id:sub(5)
+    for _, tag in ipairs(contact.tags or {}) do
+      if slug(tag) == wanted then return true end
+    end
+    return false
+  end
+  return true
+end
+
+local function visible_contacts(snapshot, filter_id)
+  local out = {}
+  for _, contact in ipairs(sorted_contacts(snapshot)) do
+    if filter_matches(contact, filter_id) then out[#out + 1] = contact end
+  end
+  if filter_id == "recent" then
+    local recent = {}
+    for index = 1, math.min(20, #out) do recent[#recent + 1] = out[index] end
+    return recent
+  end
+  return out
+end
+
+local function derive_folders(snapshot)
+  local contacts = snapshot.contacts or {}
+  local folders = {
+    { id = "all", label = "All", kind = "smart", count = #contacts },
+    { id = "favorites", label = "Favorites", kind = "smart", count = 0 },
+    { id = "recent", label = "Recent", kind = "smart", count = 0 },
+  }
+  local orgs, domains, tags = {}, {}, {}
+  for _, contact in ipairs(contacts) do
+    if contact_favorite(contact) then folders[2].count = folders[2].count + 1 end
+    if contact_mru(contact) > 0 then folders[3].count = folders[3].count + 1 end
+    local org = contact.org or ""
+    if org ~= "" and org ~= contact.name then
+      orgs[org] = (orgs[org] or 0) + 1
+    end
+    local domain = email_domain(contact)
+    if domain then domains[domain] = (domains[domain] or 0) + 1 end
+    for _, tag in ipairs(contact.tags or {}) do tags[tag] = (tags[tag] or 0) + 1 end
+  end
+  local function append(map, prefix, kind, limit)
+    local rows = {}
+    for label, count in pairs(map) do rows[#rows + 1] = { label = label, count = count } end
+    table.sort(rows, function(a, b)
+      if a.count ~= b.count then return a.count > b.count end
+      return a.label < b.label
+    end)
+    for index = 1, math.min(limit, #rows) do
+      local row = rows[index]
+      folders[#folders + 1] = {
+        id = prefix .. slug(row.label),
+        label = row.label,
+        kind = kind,
+        value = row.label,
+        count = row.count,
+      }
+    end
+  end
+  append(orgs, "org-", "org", 3)
+  append(domains, "domain-", "domain", 3)
+  append(tags, "tag-", "tag", 3)
+  return folders
+end
+
+local function active_filter(snapshot, state)
+  if state.filter and state.filter ~= "" then return state.filter end
   for _, filter in ipairs(snapshot.filters or {}) do
     if filter.selected then return filter.id end
   end
   return "all"
-end
-
-local function visible_contacts(snapshot, filter_id)
-  local contacts = snapshot.contacts or {}
-  if filter_id == "orgs" then
-    local out = {}
-    for _, contact in ipairs(contacts) do
-      if contact.org and contact.org ~= "" then out[#out + 1] = contact end
-    end
-    return out
-  end
-  if filter_id == "recent" then
-    local out = {}
-    for index = 1, math.min(20, #contacts) do out[#out + 1] = contacts[index] end
-    return out
-  end
-  return contacts
 end
 
 local function contact_line(contact)
@@ -114,13 +209,16 @@ end
 local function activate(snapshot, state, target)
   target = tostring(target or "")
   local index = tonumber(target:match("^contact%-(%d+)$"))
-  local contacts = visible_contacts(snapshot, state.filter or active_filter(snapshot))
+  local current_filter = active_filter(snapshot, state)
+  local contacts = visible_contacts(snapshot, current_filter)
   if index and contacts[index] then
     state.contact = contacts[index].id
     apply_state(snapshot, state)
     return
   end
   local filter_id = target:match("^contacts%-filters%-(.+)$")
+    or target:match("^contacts%-smart%-(.+)$")
+    or target:match("^contacts%-groups%-(.+)$")
   if filter_id then
     state.filter = filter_id
     apply_state(snapshot, state)
@@ -154,11 +252,14 @@ local function hit_target(snapshot, state, laid, x, y)
   }) do
     if hit(id) then return id end
   end
-  for _, filter in ipairs(snapshot.filters or {}) do
-    local id = "contacts-filters-" .. (filter.id or "")
-    if hit(id) then return id end
+  local folders = derive_folders(snapshot)
+  for _, filter in ipairs(folders) do
+    for _, prefix in ipairs({ "contacts-filters-", "contacts-smart-", "contacts-groups-" }) do
+      local id = prefix .. (filter.id or "")
+      if hit(id) then return id end
+    end
   end
-  local contacts = visible_contacts(snapshot, state.filter or active_filter(snapshot))
+  local contacts = visible_contacts(snapshot, active_filter(snapshot, state))
   for index = 1, #contacts do
     if hit("contact-" .. index) then return "contact-" .. index end
   end
@@ -197,20 +298,37 @@ local function contact_row(contact, index, selected)
   })
 end
 
-local FILTER_LABEL = { all = "All", people = "People", org = "Orgs", orgs = "Orgs", recent = "Recent" }
+local function split_folders(snapshot)
+  local smart, groups = {}, {}
+  for _, folder in ipairs(derive_folders(snapshot)) do
+    if folder.kind == "smart" then smart[#smart + 1] = folder
+    else groups[#groups + 1] = folder end
+  end
+  return smart, groups
+end
 
-local function filter_bar(snapshot)
+local function selected_folder(snapshot, state, folders)
+  local id = active_filter(snapshot, state)
+  for _, folder in ipairs(folders) do
+    if folder.id == id then return folder end
+  end
+  return folders[1]
+end
+
+local function folder_bar(snapshot, state)
+  local smart = split_folders(snapshot)
+  local current = active_filter(snapshot, state)
   local children = {}
-  for _, filter in ipairs(snapshot.filters or {}) do
+  for _, filter in ipairs(smart) do
     local id = filter.id or ""
-    local selected = filter.selected == true
+    local selected = id == current
     children[#children + 1] = ui.list_row("contacts-filters-" .. id, {
-      width = 78,
+      width = 96,
       height = 28,
-      padding = { left = 6, right = 6 },
+      padding = { left = 7, right = 7 },
       selected = selected,
     }, {
-      ui.text("contacts-filters-" .. id .. "-label", FILTER_LABEL[id] or filter.label or id, {
+      ui.text("contacts-filters-" .. id .. "-label", filter.label or id, {
         size = 9,
         ink = selected and "primary" or "muted",
         flex_grow = 1,
@@ -223,6 +341,35 @@ local function filter_bar(snapshot)
     })
   end
   return ui.row("contacts-filters", { height = 28, gap = 4 }, children)
+end
+
+local function folder_sidebar(snapshot, state)
+  local smart, groups = split_folders(snapshot)
+  local current = active_filter(snapshot, state)
+  local function items(folders)
+    local out = {}
+    for _, folder in ipairs(folders) do
+      out[#out + 1] = {
+        id = folder.id,
+        label = clip(folder.label, 24),
+        count = folder.count,
+        selected = folder.id == current,
+      }
+    end
+    return out
+  end
+  local children = {
+    ui.sidebar_group("contacts-smart", "SMART", items(smart), { size = 10, height = 27 }),
+  }
+  if #groups > 0 then
+    children[#children + 1] = ui.sidebar_group("contacts-groups", "AUTO GROUPS", items(groups), {
+      size = 9,
+      height = 24,
+      count_size = 9,
+      count_width = 24,
+    })
+  end
+  return ui.column("contacts-folders", { gap = 8 }, children)
 end
 
 local function details_page(contact, compact)
@@ -333,30 +480,39 @@ local function details_page(contact, compact)
 end
 
 local function list_pane(snapshot, state, ctx, wide)
-  local filter_id = state.filter or active_filter(snapshot)
+  local filter_id = active_filter(snapshot, state)
   local contacts = visible_contacts(snapshot, filter_id)
   local _, selected_index = selected_contact(snapshot)
-  local max_rows = wide and 18 or math.max(4, math.floor((ctx.viewport.height - 500) / 58))
+  local max_rows = wide and 14 or math.max(4, math.floor((ctx.viewport.height - 500) / 58))
   local visible = math.min(#contacts, max_rows)
   local rows = {}
   for index = 1, visible do
     rows[#rows + 1] = contact_row(contacts[index], index, contacts[index].id == snapshot.selected_id)
   end
   if #contacts == 0 then
-    rows[1] = ui.empty_state("contacts-list-empty", "No matches", "Try another filter.", {
+    rows[1] = ui.empty_state("contacts-list-empty", "No matches", "Try another folder or search.", {
       title_size = 14, detail_size = 10, detail_height = 24,
     })
   end
-  return ui.column("contacts-list-pane", { flex_grow = 1, gap = 2 }, {
-    filter_bar(snapshot),
-    ui.row("contacts-list-head", { height = 28, padding = { left = 2, right = 2 } }, {
-      ui.text("contacts-list-title", "PEOPLE", { size = 9, ink = "muted", flex_grow = 1 }),
-      ui.text("contacts-list-count", string.format("%d shown · %d total", #contacts, snapshot.total or #contacts), {
-        size = 9, ink = "muted", width = 142,
-      }),
+  local smart, groups = split_folders(snapshot)
+  local folder = selected_folder(snapshot, state, (function()
+    local all = {}
+    for _, item in ipairs(smart) do all[#all + 1] = item end
+    for _, item in ipairs(groups) do all[#all + 1] = item end
+    return all
+  end)())
+  local children = {}
+  if not wide then children[#children + 1] = folder_bar(snapshot, state) end
+  children[#children + 1] = ui.row("contacts-list-head", { height = 28, padding = { left = 2, right = 2 } }, {
+    ui.text("contacts-list-title", string.upper(folder and folder.label or "People"), {
+      size = 9, ink = "muted", flex_grow = 1,
     }),
-    ui.column("contacts-list", { flex_grow = 1, gap = 0 }, rows),
+    ui.text("contacts-list-count", string.format("%d shown · %d total", #contacts, snapshot.total or #contacts), {
+      size = 9, ink = "muted", width = 142,
+    }),
   })
+  children[#children + 1] = ui.column("contacts-list", { flex_grow = 1, gap = 0 }, rows)
+  return ui.column("contacts-list-pane", { flex_grow = 1, gap = 2 }, children)
 end
 
 local function tree(ctx)
@@ -402,7 +558,7 @@ local function tree(ctx)
         flex_shrink = 0,
         gap = 8,
         padding = { top = 10, right = 10, bottom = 10, left = 10 },
-      }, { list_pane(snapshot, state, ctx, true) }),
+      }, { folder_sidebar(snapshot, state), list_pane(snapshot, state, ctx, true) }),
       ui.pane("contacts-detail-pane", {
         pane_id = "detail",
         flex_grow = 1,
@@ -510,7 +666,7 @@ function M.render(input)
   end
   paint(surface, laid, "contact-toast", "surface", 0.98, 14)
 
-  local contacts = visible_contacts(snapshot, state.filter or active_filter(snapshot))
+  local contacts = visible_contacts(snapshot, active_filter(snapshot, state))
   local selected, _ = selected_contact(snapshot)
   for index = 1, math.min(#contacts, 18) do
     local node = ui.find(laid, "contact-" .. index)
@@ -543,15 +699,16 @@ function M.render(input)
     end
   end
 
-  local selected_filter = nil
-  for _, filter in ipairs(snapshot.filters or {}) do
-    if filter.selected then
-      selected_filter = filter.id
-      local id = "contacts-filters-" .. (filter.id or "")
-      local node = ui.find(laid, id)
-      if node then
-        surface:rect(id .. "-selected", node.rect.x, node.rect.y, node.rect.width, node.rect.height,
-          "primary", 0.14, 7)
+  local selected_filter = current_filter
+  for _, filter in ipairs(derive_folders(snapshot)) do
+    if filter.id == current_filter then
+      for _, prefix in ipairs({ "contacts-filters-", "contacts-smart-", "contacts-groups-" }) do
+        local id = prefix .. (filter.id or "")
+        local node = ui.find(laid, id)
+        if node then
+          surface:rect(id .. "-selected", node.rect.x, node.rect.y, node.rect.width, node.rect.height,
+            "primary", 0.14, 7)
+        end
       end
     end
   end
@@ -573,8 +730,11 @@ function M.render(input)
 
   ui.paint_rules(surface, laid, "muted", 0.10)
   ui.paint_text(surface, laid, function(node)
-    if node.id:find("^contacts%-filters%-") then
+    if node.id:find("^contacts%-filters%-") or node.id:find("^contacts%-smart%-")
+      or node.id:find("^contacts%-groups%-") then
       local id = node.id:match("^contacts%-filters%-(.-)%-label$")
+        or node.id:match("^contacts%-smart%-(.-)%-label$")
+        or node.id:match("^contacts%-groups%-(.-)%-label$")
       return id == selected_filter and "primary" or "muted"
     end
     if node.id:find("subtitle") or node.id:find("list%-title") or node.id:find("list%-count")
@@ -599,8 +759,10 @@ function M.render(input)
     "contact-action-message", "contact-action-call", "contact-action-email",
     "contact-action-edit", "contact-toast-undo",
   }
-  for _, filter in ipairs(snapshot.filters or {}) do
-    hit_ids[#hit_ids + 1] = "contacts-filters-" .. (filter.id or "")
+  for _, filter in ipairs(derive_folders(snapshot)) do
+    for _, prefix in ipairs({ "contacts-filters-", "contacts-smart-", "contacts-groups-" }) do
+      hit_ids[#hit_ids + 1] = prefix .. (filter.id or "")
+    end
   end
   for index = 1, math.min(#contacts, 18) do
     hit_ids[#hit_ids + 1] = "contact-" .. index

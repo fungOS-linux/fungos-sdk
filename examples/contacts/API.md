@@ -33,13 +33,25 @@ Pure projection. No WIT imports, no Unibus session, no filesystem or clock.
       addresses: { string }?,
       birthday: string?,
       note: string?,
+      favorite: boolean?,
+      last_contacted: integer?,   -- unix ms; drives MRU order
+      tags: { string }?,
     },
   },
 }
 ```
 
-The Spore owns the query and filtering. The view may apply local presentation
-filters (`all`, `orgs`, `recent`) for the prototype.
+The Spore owns the query and filtering. The view derives presentation folders
+for the prototype:
+
+- `all` — favorites first, then MRU, then name
+- `favorites`
+- `recent` — MRU order, top 20
+- auto org groups (`org-<slug>`)
+- auto email-domain groups (`domain-<slug>`)
+- explicit tags (`tag-<slug>`)
+
+Auto groups are capped so the sidebar stays usable.
 
 ## Host events
 
