@@ -33,46 +33,76 @@ local function initials(name)
   return name:sub(1, 1):upper()
 end
 
+local function pane(workspace, id)
+  for _, item in ipairs((workspace and workspace.panes) or {}) do
+    if item.id == id then return item end
+  end
+end
+
 local function nav(snapshot)
+  local workspace = snapshot.workspace or {}
+  local sidebar = workspace.sidebar or {}
   local children = {
-    ui.text("rail-account", snapshot.account and snapshot.account.email or "Inbox", {
+    ui.text("rail-account", sidebar.account or (snapshot.account and snapshot.account.email) or "Inbox", {
       size = 10, height = 18, ink = "muted",
     }),
-    ui.section_label("rail-split-label", "SPLIT"),
   }
-  for index, item in ipairs(snapshot.splits or {}) do
-    local selected = item.selected == true
-    ui.push(children, ui.list_row("split-" .. index, {
-      height = 30,
-      padding = { left = 8, right = 8 },
-      selected = selected,
-    }, {
-      ui.text("split-" .. index .. "-name", item.label, {
-        size = 11,
-        ink = selected and "primary" or "text",
-        flex_grow = 1,
-      }),
-      ui.text("split-" .. index .. "-count", tostring(item.count or ""), {
-        size = 10,
-        ink = selected and "primary" or "muted",
-        width = 28,
-      }),
-    }))
-  end
 
-  ui.push(children, ui.section_label("rail-labels-label", "LABELS"))
-  for index, item in ipairs(snapshot.labels or {}) do
-    ui.push(children, ui.list_row("label-" .. index, {
-      height = 25,
-      padding = { left = 8, right = 8 },
-    }, {
-      ui.text("label-" .. index .. "-name", "#" .. (item.label or item.id), {
-        size = 10, ink = "muted", flex_grow = 1,
-      }),
-      ui.text("label-" .. index .. "-count", tostring(item.count or ""), {
-        size = 9, ink = "muted", width = 24,
-      }),
-    }))
+  local groups = sidebar.groups
+  if groups and #groups > 0 then
+    for group_index, group in ipairs(groups) do
+      local items = {}
+      for _, item in ipairs(group.items or {}) do
+        items[#items + 1] = {
+          id = item.id,
+          label = item.label or item.id,
+          count = item.count,
+          selected = item.selected,
+          action = action.intent("nav.activate", {
+            group = group.id,
+            item = item.id,
+          }),
+        }
+      end
+      ui.push(children, ui.sidebar_group("rail-group-" .. group_index, group.label or "", items, {
+        size = 10,
+        height = 26,
+      }))
+    end
+  else
+    ui.push(children, ui.section_label("rail-split-label", "SPLIT"))
+    for index, item in ipairs(snapshot.splits or {}) do
+      ui.push(children, ui.list_row("split-" .. index, {
+        height = 30,
+        padding = { left = 8, right = 8 },
+        selected = item.selected == true,
+      }, {
+        ui.text("split-" .. index .. "-name", item.label, {
+          size = 11,
+          ink = item.selected and "primary" or "text",
+          flex_grow = 1,
+        }),
+        ui.text("split-" .. index .. "-count", tostring(item.count or ""), {
+          size = 10,
+          ink = item.selected and "primary" or "muted",
+          width = 28,
+        }),
+      }))
+    end
+    ui.push(children, ui.section_label("rail-labels-label", "LABELS"))
+    for index, item in ipairs(snapshot.labels or {}) do
+      ui.push(children, ui.list_row("label-" .. index, {
+        height = 25,
+        padding = { left = 8, right = 8 },
+      }, {
+        ui.text("label-" .. index .. "-name", "#" .. (item.label or item.id), {
+          size = 10, ink = "muted", flex_grow = 1,
+        }),
+        ui.text("label-" .. index .. "-count", tostring(item.count or ""), {
+          size = 9, ink = "muted", width = 24,
+        }),
+      }))
+    end
   end
 
   ui.push(children, ui.spacer("rail-spacer", { flex_grow = 1 }))
@@ -134,12 +164,44 @@ end
 
 local function list(ctx)
   local snapshot = ctx.snapshot
+  local workspace = snapshot.workspace or {}
+  local list_pane = pane(workspace, "list")
+  local tabs = (list_pane and list_pane.tabs) or {}
+  local active = nil
+  for _, tab in ipairs(tabs) do
+    if tab.selected or tab.id == list_pane.active_tab then active = tab end
+  end
   local threads = snapshot.threads or {}
   local offset = math.max(0, math.floor(tonumber((snapshot.layout or {}).list_offset) or 0))
   local limit = math.min(12, math.max(1, math.floor(tonumber((snapshot.layout or {}).list_limit) or #threads or 1)))
   local first = math.min(#threads, offset + 1)
   local last = math.min(#threads, offset + limit)
   local _, selected_index = selected_thread(snapshot)
+
+  local tab_nodes = {}
+  for _, tab in ipairs(tabs) do
+    tab_nodes[#tab_nodes + 1] = {
+      id = tab.id,
+      label = tab.label,
+      unread = tab.unread,
+      selected = tab.selected or tab.id == list_pane.active_tab,
+      action = action.intent("tab.activate", { pane_id = "list", tab_id = tab.id }),
+    }
+  end
+
+  local header
+  if #tab_nodes > 0 then
+    header = ui.tabbar("list-tabs", tab_nodes, { height = 26, gap = 2 })
+  else
+    header = ui.row("list-filter", {
+      height = 24, gap = 10, padding = { left = 2, right = 2 },
+    }, {
+      ui.text("list-filter-all", "All", { size = 10, ink = "primary", width = 32 }),
+      ui.text("list-filter-unread", "Unread", { size = 10, ink = "muted", width = 52 }),
+      ui.text("list-filter-attention", "Attention", { size = 10, ink = "muted", width = 68 }),
+    })
+  end
+
   local children = {
     ui.command_bar("inbox-command", {
       placeholder = "Search or run a command",
@@ -149,20 +211,14 @@ local function list(ctx)
       height = 38,
     }),
     ui.row("list-head", { height = 30, padding = { left = 4, right = 4 } }, {
-      ui.text("list-title", snapshot.title or "Important", {
+      ui.text("list-title", (active and active.label) or snapshot.title or "Important", {
         size = 16, ink = "primary", flex_grow = 1,
       }),
       ui.text("list-remaining", string.format("%d left", snapshot.remaining or 0), {
         size = 10, ink = "muted", width = 52,
       }),
     }),
-    ui.slot("inbox.list.header", ui.row("list-filter", {
-      height = 24, gap = 10, padding = { left = 2, right = 2 },
-    }, {
-      ui.text("list-filter-all", "All", { size = 10, ink = "primary", width = 32 }),
-      ui.text("list-filter-unread", "Unread", { size = 10, ink = "muted", width = 52 }),
-      ui.text("list-filter-attention", "Attention", { size = 10, ink = "muted", width = 68 }),
-    })),
+    ui.slot("inbox.list.header", header),
   }
 
   local group = snapshot.group or "TODAY"
@@ -211,7 +267,7 @@ local function action_bar(thread)
   })
 end
 
-local function message_card(message, index, selected)
+local function message_card(message, index)
   return ui.column("message-" .. index, {
     gap = 4,
     padding = { top = 10, right = 12, bottom = 10, left = 12 },
@@ -225,7 +281,7 @@ local function message_card(message, index, selected)
       }),
     }),
     ui.text("message-" .. index .. "-body", message.preview or "", {
-      size = 11, ink = selected and "text" or "text", wrap = true, height = 42,
+      size = 11, ink = "text", wrap = true, height = 42,
     }),
   })
 end
@@ -281,7 +337,7 @@ local function detail(ctx)
 
   local messages = thread.messages or {}
   for index, message in ipairs(messages) do
-    children[#children + 1] = message_card(message, index, index == #messages)
+    children[#children + 1] = message_card(message, index)
   end
 
   ui.push(children, ui.column("composer", {
@@ -315,28 +371,35 @@ end
 local function tree(ctx)
   local snapshot = ctx.snapshot
   local wide = ctx.viewport.width >= 980
-  local root = ui.column("inbox-root", {
+  local workspace = snapshot.workspace or {}
+  local focus = workspace.focus or "list"
+  local root = ui.workspace("inbox-root", {
     width = ctx.viewport.width,
     height = ctx.viewport.height,
     gap = 0,
     padding = { top = 0, right = 0, bottom = 0, left = 0 },
   }, {
     ui.row("inbox-body", { flex_grow = 1, gap = 0 }, {
-      ui.column("inbox-rail", {
+      ui.sidebar("inbox-rail", {
         width = wide and 190 or 150,
         flex_shrink = 0,
         gap = 1,
         padding = { top = 14, right = 10, bottom = 12, left = 12 },
       }, { nav(snapshot) }),
-      ui.column("inbox-list-pane", {
+      ui.pane("inbox-list-pane", {
+        pane_id = "list",
         width = wide and 366 or 310,
+        flex_grow = 0,
         flex_shrink = 0,
+        focused = focus == "list",
         gap = 2,
         padding = { top = 10, right = 8, bottom = 8, left = 8 },
       }, { list(ctx) }),
-      ui.column("inbox-detail-pane", {
+      ui.pane("inbox-detail-pane", {
+        pane_id = "detail",
         flex_grow = 1,
         min_width = 0,
+        focused = focus == "detail",
         gap = 8,
         padding = { top = 12, right = 18, bottom = 12, left = 18 },
       }, { detail(ctx) }),
@@ -410,6 +473,48 @@ function M.render(snapshot)
   paint(surface, laid, "inbox-rail", "surface", 0.22, 0)
   paint(surface, laid, "inbox-list-pane", "surface", 0.30, 0)
   paint(surface, laid, "inbox-detail-pane", "surface", 0.24, 0)
+
+  local workspace = snapshot.workspace or {}
+  local list_pane = pane(workspace, "list")
+  local selected_ids = {}
+  local focus = workspace.focus or "list"
+  for _, entry in ipairs({
+    { pane = "inbox-list-pane", id = "list" },
+    { pane = "inbox-detail-pane", id = "detail" },
+  }) do
+    local node = ui.find(laid, entry.pane)
+    if node and focus == entry.id then
+      local r = node.rect
+      surface:rect(entry.pane .. "-focus-top", r.x, r.y, r.width, 1.5, "primary", 0.45, 0)
+      surface:rect(entry.pane .. "-focus-bottom", r.x, r.y + r.height - 1.5, r.width, 1.5, "primary", 0.45, 0)
+      surface:rect(entry.pane .. "-focus-left", r.x, r.y, 1.5, r.height, "primary", 0.45, 0)
+      surface:rect(entry.pane .. "-focus-right", r.x + r.width - 1.5, r.y, 1.5, r.height, "primary", 0.45, 0)
+    end
+  end
+
+  for group_index, group in ipairs((workspace.sidebar and workspace.sidebar.groups) or {}) do
+    for _, item in ipairs(group.items or {}) do
+      local id = "rail-group-" .. group_index .. "-" .. (item.id or "")
+      if item.selected then
+        selected_ids[id] = true
+        local node = ui.find(laid, id)
+        if node then
+          surface:rect(id .. "-selected", node.rect.x, node.rect.y, node.rect.width, node.rect.height, "primary", 0.12, 7)
+        end
+      end
+    end
+  end
+
+  for _, tab in ipairs((list_pane and list_pane.tabs) or {}) do
+    local id = "list-tabs-" .. (tab.id or "")
+    if tab.selected or (list_pane and tab.id == list_pane.active_tab) then
+      selected_ids[id] = true
+      local node = ui.find(laid, id)
+      if node then
+        surface:rect(id .. "-selected", node.rect.x, node.rect.y, node.rect.width, node.rect.height, "primary", 0.14, 7)
+      end
+    end
+  end
   paint(surface, laid, "inbox-command", "surface", 0.72, 9)
   paint(surface, laid, "detail-brief", "primary", 0.08, 10)
   paint(surface, laid, "composer", "surface", 0.66, 10)
@@ -468,6 +573,10 @@ function M.render(snapshot)
 
   ui.paint_rules(surface, laid, "muted", 0.10)
   ui.paint_text(surface, laid, function(node)
+    if selected_ids[node.id .. "-label"] then return "primary" end
+    if node.id:find("^rail%-group") then
+      return node.id:find("%-label$") and "text" or "muted"
+    end
     if node.id:find("^split%-") or node.id:find("^label%-") then
       return node.id:find("name$") and "text" or "muted"
     end

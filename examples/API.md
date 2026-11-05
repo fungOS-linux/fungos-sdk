@@ -112,6 +112,43 @@ In addition to the fields above:
 `thread.messages` entries may contain `{ from, time, preview }`.
 `thread.draft` is the current agent/user reply draft.
 
+The prototype also reads a host-owned workspace projection:
+
+```lua
+{
+  workspace = {
+    active_pane: string?,
+    focus: string?,
+    panes = {
+      {
+        id: string,
+        kind: string?,
+        width: number?,
+        active_tab: string?,
+        tabs = {
+          { id: string, label: string, unread: integer?, selected: boolean?, action: ActionIntent? },
+        },
+      },
+    },
+    sidebar = {
+      account: string?,
+      groups = {
+        {
+          id: string,
+          label: string,
+          items = {
+            { id: string, label: string, count: integer?, selected: boolean?, action: ActionIntent? },
+          },
+        },
+      },
+    },
+  },
+}
+```
+
+Pane geometry, tab state, focus, split persistence, and hit testing remain
+host-owned. The view only renders the projection and emits intents.
+
 ## Host events
 
 | Event | Target | Meaning |
@@ -131,6 +168,8 @@ Text input, command palette execution, and composer editing are not wired yet.
 | `mail.archive` | `{ thread_id: string }` |
 | `mail.reply.send` | `{ thread_id: string }` |
 | `mail.reply.approve` | `{ thread_id: string }` |
+| `tab.activate` | `{ pane_id: string, tab_id: string }` |
+| `nav.activate` | `{ group: string, item: string }` |
 
 ## Slots
 
@@ -146,7 +185,8 @@ Text input, command palette execution, and composer editing are not wired yet.
 ## Stable ids
 
 `inbox-root`, `inbox-rail`, `inbox-list-pane`, `inbox-detail-pane`,
-`inbox-command`, `list-head`, `thread-<n>`, `detail-actions`, `detail-title`,
+`inbox-command`, `list-head`, `list-tabs`, `list-tabs-<tab>`, `rail-group-<n>`,
+`rail-group-<n>-<item>`, `thread-<n>`, `detail-actions`, `detail-title`,
 `detail-brief`, `composer`, `inbox-status`, `toast`.
 
 ## Authority

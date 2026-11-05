@@ -13,6 +13,49 @@ return {
   group = "TODAY",
   selected_id = "support/refund-441",
   layout = { list_offset = 0, list_limit = 14 },
+  workspace = {
+    active_pane = "list",
+    focus = "list",
+    panes = {
+      { id = "rail", kind = "sidebar", width = 190 },
+      {
+        id = "list", kind = "list", width = 366, active_tab = "important",
+        tabs = {
+          { id = "important", label = "Important", unread = 3, selected = true },
+          { id = "other", label = "Other", unread = 8 },
+          { id = "feed", label = "Feed", unread = 12 },
+        },
+      },
+      {
+        id = "detail", kind = "detail", active_tab = "refund-441",
+        tabs = {
+          { id = "refund-441", label = "Refund request", selected = true },
+        },
+      },
+    },
+    sidebar = {
+      account = "avery@example.com",
+      groups = {
+        {
+          id = "splits", label = "SPLIT",
+          items = {
+            { id = "important", label = "Important", count = 3, selected = true },
+            { id = "other", label = "Other", count = 8 },
+            { id = "feed", label = "Feed", count = 12 },
+            { id = "snoozed", label = "Snoozed", count = 2 },
+            { id = "done", label = "Done", count = 0 },
+          },
+        },
+        {
+          id = "labels", label = "LABELS",
+          items = {
+            { id = "support", label = "#support", count = 2 },
+            { id = "ci", label = "#ci", count = 1 },
+          },
+        },
+      },
+    },
+  },
   splits = {
     { id = "important", label = "Important", count = 3, selected = true },
     { id = "other", label = "Other", count = 8 },

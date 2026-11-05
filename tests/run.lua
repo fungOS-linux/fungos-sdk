@@ -81,6 +81,24 @@ local valid = ui.column("root", {}, {
 })
 validate.tree(valid)
 
+local workspace = ui.workspace("ws", { width = 800, height = 600 }, {
+  ui.sidebar("side", { width = 160 }, {
+    ui.sidebar_group("groups", "SPLIT", {
+      { id = "important", label = "Important", count = 3, selected = true },
+    }),
+  }),
+  ui.pane("main", { pane_id = "main", focused = true }, {
+    ui.tabbar("tabs", {
+      { id = "important", label = "Important", unread = 3, selected = true },
+      { id = "other", label = "Other", unread = 8 },
+    }),
+    ui.command_palette("palette", {}, {
+      ui.command_item("archive", "Archive", { keys = "E" }),
+    }),
+  }),
+})
+validate.tree(workspace)
+
 fails(function()
   validate.tree({ id = "root", kind = "container", children = { { id = "a", kind = "text", text = "", style = { size = 12 } } } })
 end, "empty or whitespace")

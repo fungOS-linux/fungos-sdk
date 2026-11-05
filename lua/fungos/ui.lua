@@ -386,6 +386,173 @@ function ui.command_bar(id, opts)
   }, children)
 end
 
+-- ---- workspace / pane / tab components ----------------------------------
+
+--- Mark a node as focusable and optionally focused. Painting decides how the
+--- focus ring looks; the tree only carries the semantic state.
+function ui.focusable(node, focused)
+  node.focusable = true
+  node.focused = focused == true
+  return node
+end
+
+--- A workspace root. Pane geometry remains host-owned; this is the content box.
+function ui.workspace(id, opts, children)
+  opts = opts or {}
+  return ui.column(id, {
+    width = opts.width,
+    height = opts.height,
+    flex_grow = opts.flex_grow,
+    gap = opts.gap or 0,
+    padding = opts.padding or { top = 0, right = 0, bottom = 0, left = 0 },
+  }, children)
+end
+
+--- A pane content box. `opts.focused` is presentation metadata, not authority.
+function ui.pane(id, opts, children)
+  opts = opts or {}
+  local layout = {
+    flex_grow = opts.flex_grow == nil and 1 or opts.flex_grow,
+    flex_shrink = opts.flex_shrink == nil and 1 or opts.flex_shrink,
+    min_width = opts.min_width,
+    width = opts.width,
+    gap = opts.gap or 0,
+    padding = opts.padding,
+  }
+  local pane = ui.column(id, layout, children)
+  pane.pane = opts.pane_id or id
+  pane.focused = opts.focused == true
+  return pane
+end
+
+--- One tab. Selected/unread are semantic flags; the view paints them.
+function ui.tab(id, label, opts)
+  opts = opts or {}
+  local children = {
+    ui.text(id .. "-label", label, {
+      size = opts.size or 11,
+      ink = opts.selected and "primary" or (opts.unread and "text" or "muted"),
+      flex_grow = 1,
+    }),
+  }
+  if opts.badge then
+    children[#children + 1] = ui.badge(id .. "-badge", tostring(opts.badge), {
+      size = opts.badge_size or 9,
+      ink = opts.selected and "primary" or "muted",
+    })
+  elseif opts.unread then
+    children[#children + 1] = ui.text(id .. "-unread", tostring(opts.unread), {
+      size = opts.badge_size or 9,
+      ink = opts.selected and "primary" or "muted",
+      width = 24,
+    })
+  end
+  return ui.list_row(id, {
+    height = opts.height or 30,
+    padding = opts.padding or { left = 8, right = 8 },
+    selected = opts.selected,
+    unread = opts.unread,
+    action = opts.action,
+  }, children)
+end
+
+--- Horizontal tabs for a pane. `tabs` is `{ {id,label,unread,selected,action} }`.
+function ui.tabbar(id, tabs, opts)
+  opts = opts or {}
+  local children = {}
+  for index, tab in ipairs(tabs or {}) do
+    children[#children + 1] = ui.tab(id .. "-" .. (tab.id or index), tab.label or "Tab", {
+      selected = tab.selected,
+      unread = tab.unread,
+      badge = tab.badge,
+      action = tab.action,
+      height = opts.height,
+      size = opts.size,
+      padding = opts.padding,
+    })
+  end
+  return ui.row(id, {
+    height = opts.height or 32,
+    gap = opts.gap or 2,
+    padding = opts.padding or { left = 0, right = 0 },
+  }, children)
+end
+
+--- A sidebar content box.
+function ui.sidebar(id, opts, children)
+  opts = opts or {}
+  return ui.column(id, {
+    width = opts.width,
+    flex_shrink = opts.flex_shrink == nil and 0 or opts.flex_shrink,
+    gap = opts.gap or 1,
+    padding = opts.padding or { top = 12, right = 10, bottom = 12, left = 12 },
+  }, children)
+end
+
+--- One named sidebar group. Items are `{ id,label,count,selected,action }`.
+function ui.sidebar_group(id, label, items, opts)
+  opts = opts or {}
+  local children = { ui.section_label(id .. "-label", label, { ink = opts.label_ink }) }
+  for index, item in ipairs(items or {}) do
+    local row_children = {
+      ui.text(id .. "-" .. (item.id or index) .. "-label", item.label or item.id or "", {
+        size = opts.size or 10,
+        ink = item.selected and "primary" or (opts.ink or "muted"),
+        flex_grow = 1,
+      }),
+    }
+    if item.count ~= nil then
+      row_children[#row_children + 1] = ui.text(id .. "-" .. (item.id or index) .. "-count", tostring(item.count), {
+        size = opts.count_size or 10,
+        ink = item.selected and "primary" or "muted",
+        width = opts.count_width or 28,
+      })
+    end
+    children[#children + 1] = ui.list_row(id .. "-" .. (item.id or index), {
+      height = opts.height or 26,
+      padding = opts.padding or { left = 8, right = 8 },
+      selected = item.selected,
+      action = item.action,
+    }, row_children)
+  end
+  return ui.column(id, { gap = opts.gap or 1 }, children)
+end
+
+--- A command palette panel. The host owns focus, filtering, and selection.
+function ui.command_palette(id, opts, children)
+  opts = opts or {}
+  return ui.column(id, {
+    width = opts.width or 520,
+    height = opts.height,
+    gap = opts.gap or 4,
+    padding = opts.padding or { top = 10, right = 10, bottom = 10, left = 10 },
+  }, children)
+end
+
+--- One command row.
+function ui.command_item(id, label, opts)
+  opts = opts or {}
+  return ui.list_row(id, {
+    height = opts.height or 30,
+    padding = { left = 8, right = 8 },
+    selected = opts.selected,
+    action = opts.action,
+  }, {
+    ui.text(id .. "-label", label, {
+      size = opts.size or 11,
+      ink = opts.selected and "primary" or "text",
+      flex_grow = 1,
+    }),
+    ui.kbd(id .. "-keys", opts.keys or "", { size = 9, width = opts.keys_width or 44 }),
+  })
+end
+
+--- A focus ring descriptor. The view paints it.
+function ui.focus_ring(node)
+  node.focus_ring = true
+  return node
+end
+
 --- A label/keys pair for shortcut sheets and empty states.
 function ui.shortcut(id, label, keys, opts)
   opts = opts or {}
