@@ -154,10 +154,29 @@ host-owned. The view only renders the projection and emits intents.
 | Event | Target | Meaning |
 | --- | --- | --- |
 | `activate` | `thread-<n>` | select thread |
+| `activate` | `list-tabs-<tab>` | select split/tab |
+| `activate` | `rail-group-<n>-<item>` | select sidebar item |
+| `activate` | `detail-archive` | show archive feedback |
+| `activate` | `composer-send` | show send feedback |
+| `activate` | `toast-undo` | clear toast |
 | `key` with `j`/`down` | — | next thread |
 | `key` with `k`/`up` | — | previous thread |
+| `pointer` press/release | coordinates | immediate press state and target activation |
+| `pointer` move | coordinates | hover state when the host sends it |
+
+The view persists its own selection/state through the Canvas `module.select`
+memory:
+
+```text
+v1;thread=<id>;tab=<id>;nav=<group>:<item>;toast=<archive|sent|draft>
+```
+
+This is view-local memory, not Spore state. Durable mail state still belongs to
+the Spore/Unibus action router.
 
 Text input, command palette execution, and composer editing are not wired yet.
+The host currently dispatches pointer press/release, not hover moves; the view
+is prepared to handle moves when that is enabled.
 
 ## Actions
 

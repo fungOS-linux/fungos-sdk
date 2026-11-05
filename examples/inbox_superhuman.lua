@@ -418,11 +418,16 @@ local function tree(ctx)
       }),
     }),
   })
-  if wide  then
+  if wide and ctx.state.toast then
+    local message = ({
+      archive = "Archived 1 thread",
+      sent = "Reply sent",
+      draft = "Draft ready",
+    })[ctx.state.toast] or "Done"
     ui.push(root.children, ui.slot("inbox.toast", ui.row("toast", {
       height = 30, gap = 10, padding = { left = 12, right = 12 },
     }, {
-      ui.text("toast-text", "Archived 1 thread", { size = 10, ink = "text", flex_grow = 1 }),
+      ui.text("toast-text", message, { size = 10, ink = "text", flex_grow = 1 }),
       ui.text("toast-undo", "Undo", { size = 10, ink = "primary", width = 36 }),
     })))
   end
@@ -436,38 +441,187 @@ local function paint(surface, laid, id, ink, opacity, radius)
   end
 end
 
-local function apply_event(snapshot)
-  local event = ui.event()
-  if not event then return snapshot end
-  local threads = snapshot.threads or {}
-  local _, current = selected_thread(snapshot)
-  local next_index = current
-  if event.kind == "activate" then
-    local index = tonumber((event.target_id or ""):match("^thread%-(%d+)$"))
-    if index then next_index = index end
-  elseif event.kind == "key" then
-    if event.key == "j" or event.key == "down" then next_index = math.min(#threads, current + 1) end
-    if event.key == "k" or event.key == "up" then next_index = math.max(1, current - 1) end
+local function read_view_state()
+  local module = rawget(_G, "module")
+  local raw = module and module.view and module.view.selected
+  local state = {}
+  if type(raw) ~= "string" then return state end
+  if raw:sub(1, 2) ~= "v1" then
+    state.thread = raw
+    return state
   end
-  if threads[next_index] then
-    snapshot.selected_id = threads[next_index].id
-    for _, thread in ipairs(threads) do thread.selected = thread.id == snapshot.selected_id end
+  for part in raw:gmatch("[^;]+") do
+    local key, value = part:match("^([%w_]+)=(.*)$")
+    if key then state[key] = value end
   end
-  return snapshot
+  return state
 end
 
-function M.render(snapshot)
-  snapshot = apply_event(snapshot or {})
+local function write_view_state(state)
+  local module = rawget(_G, "module")
+  if not (module and type(module.select) == "function") then return end
+  local parts = { "v1" }
+  for _, key in ipairs({ "thread", "tab", "nav", "toast" }) do
+    local value = state[key]
+    if value and value ~= "" and not value:find("[;=]") then
+      parts[#parts + 1] = key .. "=" .. value
+    end
+  end
+  local raw = table.concat(parts, ";")
+  if #raw <= 128 then pcall(module.select, raw) end
+end
+
+local function apply_state(snapshot, state)
+  local threads = snapshot.threads or {}
+  if state.thread then
+    for _, thread in ipairs(threads) do
+      if thread.id == state.thread then
+        snapshot.selected_id = thread.id
+      end
+      thread.selected = thread.id == snapshot.selected_id
+    end
+  end
+  local workspace = snapshot.workspace or {}
+  local list_pane = pane(workspace, "list")
+  if list_pane and state.tab then
+    list_pane.active_tab = state.tab
+    for _, tab in ipairs(list_pane.tabs or {}) do
+      tab.selected = tab.id == state.tab
+    end
+  end
+  if state.nav then
+    local group_id, item_id = state.nav:match("^(.-):(.+)$")
+    for _, group in ipairs((workspace.sidebar and workspace.sidebar.groups) or {}) do
+      if group.id == group_id then
+        for _, item in ipairs(group.items or {}) do
+          item.selected = item.id == item_id
+        end
+      end
+    end
+  end
+end
+
+local function activate(snapshot, state, target)
+  target = tostring(target or "")
+  local threads = snapshot.threads or {}
+  local index = tonumber(target:match("^thread%-(%d+)$"))
+  if index and threads[index] then
+    state.thread = threads[index].id
+    apply_state(snapshot, state)
+    return
+  end
+  local tab_id = target:match("^list%-tabs%-(.+)$")
+  if tab_id then
+    state.tab = tab_id
+    apply_state(snapshot, state)
+    return
+  end
+  local group_index, item_id = target:match("^rail%-group%-(%d+)%-(.+)$")
+  if group_index and item_id then
+    local workspace = snapshot.workspace or {}
+    local group = ((workspace.sidebar and workspace.sidebar.groups) or {})[tonumber(group_index)]
+    if group then
+      state.nav = group.id .. ":" .. item_id
+      apply_state(snapshot, state)
+    end
+    return
+  end
+  if target == "detail-archive" then
+    state.toast = "archive"
+  elseif target == "composer-send" then
+    state.toast = "sent"
+  elseif target == "toast-undo" then
+    state.toast = nil
+  end
+end
+
+local function inside(rect, x, y)
+  return x >= rect.x and y >= rect.y and x <= rect.x + rect.width and y <= rect.y + rect.height
+end
+
+local function hit_target(snapshot, laid, x, y)
+  local function hit(id)
+    local node = ui.find(laid, id)
+    return node and inside(node.rect, x, y)
+  end
+  for _, id in ipairs({
+    "detail-reply", "detail-reply-all", "detail-archive",
+    "composer-send", "composer-approve", "toast-undo",
+  }) do
+    if hit(id) then return id end
+  end
+  local workspace = snapshot.workspace or {}
+  local list_pane = pane(workspace, "list")
+  for _, tab in ipairs((list_pane and list_pane.tabs) or {}) do
+    local id = "list-tabs-" .. (tab.id or "")
+    if hit(id) then return id end
+  end
+  for group_index, group in ipairs((workspace.sidebar and workspace.sidebar.groups) or {}) do
+    for _, item in ipairs(group.items or {}) do
+      local id = "rail-group-" .. group_index .. "-" .. (item.id or "")
+      if hit(id) then return id end
+    end
+  end
+  for index = 1, #(snapshot.threads or {}) do
+    if hit("thread-" .. index) then return "thread-" .. index end
+  end
+end
+
+
+function M.render(input)
+  local snapshot = input or {}
+  local state = read_view_state()
+  apply_state(snapshot, state)
+  local event = ui.event()
+
+  if event and event.kind == "activate" then
+    activate(snapshot, state, event.target_id)
+    write_view_state(state)
+  elseif event and event.kind == "key" then
+    local threads = snapshot.threads or {}
+    local _, current = selected_thread(snapshot)
+    local next_index = current
+    if event.key == "j" or event.key == "down" then next_index = math.min(#threads, current + 1) end
+    if event.key == "k" or event.key == "up" then next_index = math.max(1, current - 1) end
+    if threads[next_index] then
+      state.thread = threads[next_index].id
+      apply_state(snapshot, state)
+      write_view_state(state)
+    end
+  end
+
   local width, height = ui.viewport(1200, 900)
   local theme = ui.theme()
   local surface = ui.surface(width, height, theme)
   local ctx = {
     snapshot = snapshot,
+    state = state,
     viewport = { width = width, height = height },
     theme = theme,
   }
-  local laid = ui.layout(tree(ctx), width, height)
+  local function build()
+    return ui.layout(tree(ctx), width, height)
+  end
+  local laid = build()
   local wide = width >= 980
+
+  if event and event.kind == "pointer" then
+    local target = hit_target(snapshot, laid, event.x * width, event.y * height)
+    if event.phase == "press" then
+      state.pressed = target
+      if target then
+        activate(snapshot, state, target)
+        write_view_state(state)
+      end
+      laid = build()
+    elseif event.phase == "release" then
+      state.pressed = nil
+      laid = build()
+    elseif event.phase == "move" then
+      state.hover = target
+      laid = build()
+    end
+  end
 
   surface:background("background")
   paint(surface, laid, "inbox-rail", "surface", 0.22, 0)
@@ -478,6 +632,7 @@ function M.render(snapshot)
   local list_pane = pane(workspace, "list")
   local selected_ids = {}
   local focus = workspace.focus or "list"
+  local selected_thread_value, selected_index = selected_thread(snapshot)
   for _, entry in ipairs({
     { pane = "inbox-list-pane", id = "list" },
     { pane = "inbox-detail-pane", id = "detail" },
@@ -524,7 +679,7 @@ function M.render(snapshot)
   for index = 1, math.min(#(snapshot.threads or {}), 12) do
     local node = ui.find(laid, "thread-" .. index)
     if node then
-      local selected = node.selected == true
+      local selected = index == selected_index
       surface:rect("thread-bg-" .. index, node.rect.x, node.rect.y, node.rect.width, node.rect.height,
         selected and "primary" or "surface", selected and 0.15 or 0.05, 8)
       local avatar = ui.find(laid, "thread-" .. index .. "-avatar")
@@ -564,11 +719,18 @@ function M.render(snapshot)
     end
   end
 
-  local selected, selected_index = selected_thread(snapshot)
   local selected_row = ui.find(laid, "thread-" .. tostring(selected_index))
   if selected_row then
     surface:rect("thread-selected", selected_row.rect.x, selected_row.rect.y,
       selected_row.rect.width, selected_row.rect.height, "primary", 0.15, 8)
+  end
+
+  if state.pressed then
+    local pressed = ui.find(laid, state.pressed)
+    if pressed and pressed.kind == "container" then
+      surface:rect("pressed", pressed.rect.x, pressed.rect.y,
+        pressed.rect.width, pressed.rect.height, "primary", 0.22, 7)
+    end
   end
 
   ui.paint_rules(surface, laid, "muted", 0.10)
@@ -600,11 +762,24 @@ function M.render(snapshot)
     return node.ink or "text"
   end)
 
-  if wide then
-    for index = 1, math.min(#(snapshot.threads or {}), 12) do
-      local node = ui.find(laid, "thread-" .. index)
-      if node then surface:hit("thread-" .. index, node.rect) end
+  local hit_ids = {
+    "detail-reply", "detail-reply-all", "detail-archive",
+    "composer-send", "composer-approve", "toast-undo",
+  }
+  for _, tab in ipairs((list_pane and list_pane.tabs) or {}) do
+    hit_ids[#hit_ids + 1] = "list-tabs-" .. (tab.id or "")
+  end
+  for group_index, group in ipairs((workspace.sidebar and workspace.sidebar.groups) or {}) do
+    for _, item in ipairs(group.items or {}) do
+      hit_ids[#hit_ids + 1] = "rail-group-" .. group_index .. "-" .. (item.id or "")
     end
+  end
+  for index = 1, math.min(#(snapshot.threads or {}), 12) do
+    hit_ids[#hit_ids + 1] = "thread-" .. index
+  end
+  for _, id in ipairs(hit_ids) do
+    local node = ui.find(laid, id)
+    if node then surface:hit(id, node.rect) end
   end
 end
 
