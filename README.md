@@ -14,6 +14,7 @@ fungos-sdk/
     compose.lua   # app + component + chrome + rice composition
     config.lua    # profile resolution
     action.lua    # action intents
+    validate.lua  # preflight tree/scene validation for mush
   rust/
     crates/fungos-sdk/src/
       action.rs   # action envelopes
@@ -60,7 +61,9 @@ mush examples/inbox.lua --snapshot examples/inbox_snapshot.lua --surface md
 ```
 
 `mush` composes the SDK, the view, a snapshot, and the user profile into a
-preview module, reloads one Canvas surface, and can capture it.
+preview module, runs a fake-host preflight, and only then writes/reloads Canvas.
+The preflight catches sparse child arrays, duplicate ids, invalid kinds, empty or
+non-printable scene text, non-finite geometry, and malformed scene calls.
 
 ## User repos
 

@@ -9,6 +9,7 @@ local ui = load_module("lua/fungos/ui.lua")
 local config = load_module("lua/fungos/config.lua")
 local compose = load_module("lua/fungos/compose.lua")
 local action = load_module("lua/fungos/action.lua")
+local validate = load_module("lua/fungos/validate.lua")
 
 local passed = 0
 local function ok(value, message)
@@ -64,5 +65,38 @@ ok(hidden["rail.tags"] and hidden["rail.footer"], "hide set should contain entri
 local children = { { id = "b" }, { id = "a" }, { id = "c" } }
 config.order_children(children, { "a", "b" })
 ok(children[1].id == "a" and children[2].id == "b" and children[3].id == "c", "order should rank listed ids first")
+
+
+-- validator catches the failures Canvas would reject
+local function fails(fn, needle)
+  local passed, err = pcall(fn)
+  ok(not passed, "expected validation failure: " .. tostring(needle))
+  if needle then
+    ok(tostring(err):find(needle, 1, true), "expected error containing " .. needle .. ", got " .. tostring(err))
+  end
+end
+
+local valid = ui.column("root", {}, {
+  ui.text("body", "ok", { size = 12 }),
+})
+validate.tree(valid)
+
+fails(function()
+  validate.tree({ id = "root", kind = "container", children = { { id = "a", kind = "text", text = "", style = { size = 12 } } } })
+end, "empty or whitespace")
+
+fails(function()
+  validate.tree({ id = "root", kind = "container", children = { { id = "a", kind = "text", text = "ok", style = { size = 12 } }, { id = "a", kind = "text", text = "again", style = { size = 12 } } } })
+end, "duplicate node id")
+
+fails(function()
+  local sparse = { id = "root", kind = "container", children = {} }
+  sparse.children[2] = { id = "a", kind = "text", text = "ok", style = { size = 12 } }
+  validate.tree(sparse)
+end, "sparse")
+
+fails(function()
+  validate.tree({ id = "root", kind = "container", children = { { id = "a", kind = "text", text = "bad\ntext", style = { size = 12 } } } })
+end, "control character")
 
 print(string.format("sdk lua: %d assertions passed", passed))

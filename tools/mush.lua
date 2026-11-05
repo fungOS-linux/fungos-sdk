@@ -44,7 +44,6 @@ end
 
 local function parse(argv)
   local options = {
-    surface = "md",
     name = "mush-preview",
     reload = true,
     check_api = true,
@@ -60,6 +59,8 @@ local function parse(argv)
       options.doctor = true
     elseif arg == "--no-reload" then
       options.reload = false
+    elseif arg == "--no-preflight" then
+      options.preflight = false
     elseif arg == "--allow-undocumented" then
       options.check_api = false
     elseif arg:sub(1, 2) == "--" then
@@ -167,6 +168,76 @@ local function module_loaders(sdk)
   return table.concat(chunks, ",\n")
 end
 
+local function flatten(node, x, y, width, height, out)
+  if type(node) ~= "table" then return end
+  local rect = { x = x, y = y, width = width, height = height }
+  out[#out + 1] = {
+    id = node.id,
+    kind = node.kind,
+    text = node.text,
+    style = node.style,
+    rect = rect,
+  }
+  for index, child in ipairs(node.children or {}) do
+    flatten(child, x, y + (index - 1) * 20, width, 20, out)
+  end
+end
+
+local function preflight(source, name, options)
+  if options.preflight == false then return end
+  local validate = dofile(join(options.sdk, "lua/fungos/validate.lua"))
+  local width = tonumber(options.width) or 1200
+  local height = tonumber(options.height) or 900
+  local env = {
+    module = {
+      viewport = { width = width, height = height },
+      theme = { body = 16 },
+    },
+    canvas = {
+      layout = function(tree, available_width, available_height)
+        validate.tree(tree)
+        local nodes = {}
+        flatten(tree, 0, 0, available_width or width, available_height or height, nodes)
+        return { root = { x = 0, y = 0, width = available_width or width, height = available_height or height }, nodes = nodes }
+      end,
+      measure_text = function(text, style)
+        local size = (style and style.size) or 16
+        return { width = #tostring(text or "") * size * 0.55, height = (style and style.line_height) or size }
+      end,
+      rect = function(args) validate.rect(args) end,
+      text = function(args) validate.text(args) end,
+    },
+    widget = {
+      hit = function(args)
+        if type(args) ~= "table" then error("widget.hit needs a table", 2) end
+        if type(args.id) ~= "string" or args.id == "" then error("widget.hit id must be a string", 2) end
+      end,
+    },
+  }
+  local standard = {
+    assert = assert, error = error, getmetatable = getmetatable, ipairs = ipairs,
+    next = next, pairs = pairs, pcall = pcall, rawequal = rawequal,
+    rawget = rawget, rawlen = rawlen, rawset = rawset, select = select,
+    setmetatable = setmetatable, tonumber = tonumber, tostring = tostring,
+    type = type, unpack = unpack, xpcall = xpcall,
+    math = math, string = string, table = table, utf8 = utf8,
+  }
+  for key, value in pairs(standard) do env[key] = value end
+  env._G = env
+
+  local chunk, load_error = load(source, "@" .. name, "t", env)
+  if not chunk then
+    io.stderr:write("mush: preflight load failed: " .. tostring(load_error) .. "\n")
+    os.exit(2)
+  end
+  local ok, runtime_error = pcall(chunk)
+  if not ok then
+    io.stderr:write("mush: preflight failed: " .. tostring(runtime_error) .. "\n")
+    os.exit(2)
+  end
+  print("mush: preflight ok")
+end
+
 local function compose(options)
   assert(options.view, "usage: mush <view.lua> [snapshot.lua] [options]")
   assert(exists(options.view), "missing view: " .. options.view)
@@ -219,6 +290,7 @@ local function compose(options)
   }, "\n")
 
   local name = options.name
+  preflight(composed, name, options)
   local module_path = join(options.modules, name .. ".lua")
   local manifest_path = join(options.modules, name .. ".json")
 
@@ -240,7 +312,7 @@ end
 local function reload(options)
   local command = string.format(
     "printf '%s' | canvasctl",
-    string.format('{"command":{"command":"reload_module","surface_id":"%s"}}', options.surface)
+    string.format('{"schema_version":1,"request_id":"mush","command":{"command":"reload_module","surface_id":"%s"}}', options.surface)
   )
   local ok = os.execute(command)
   if ok ~= 0 and ok ~= true then
@@ -285,4 +357,8 @@ if options.doctor then
 end
 
 compose(options)
-if options.reload then reload(options) end
+if options.reload and options.surface then
+  reload(options)
+elseif options.reload then
+  print("mush: no --surface given; skipped reload")
+end

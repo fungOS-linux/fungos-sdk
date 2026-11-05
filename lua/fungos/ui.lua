@@ -188,8 +188,13 @@ function ui.button(id, label, opts)
   layout.align_items = "center"
   layout.justify_content = "center"
   layout.padding = layout.padding or { left = 12, right = 12 }
+  layout.flex_shrink = 0
   if opts.flex_grow ~= nil then layout.flex_grow = opts.flex_grow end
-  if opts.width ~= nil then layout.width = opts.width end
+  if opts.width ~= nil then
+    layout.width = opts.width
+  elseif not opts.flex_grow then
+    layout.width = #tostring(label or "") * size * 0.62 + 24
+  end
 
   local child = ui.text(id .. "-label", label, {
     size = size,
@@ -232,6 +237,166 @@ end
 function ui.push(children, child)
   if child ~= nil then children[#children + 1] = child end
   return children
+end
+
+
+--- UTF-8-safe truncation. Canvas scene text must remain printable.
+function ui.clip(value, limit)
+  value = tostring(value or "")
+  if limit <= 0 then return "" end
+  local ok, length = pcall(utf8.len, value)
+  if ok and length then
+    if length <= limit then return value end
+    local offset = utf8.offset(value, limit + 1)
+    if offset then return value:sub(1, offset - 1) .. "…" end
+  end
+  if #value <= limit then return value end
+  return value:sub(1, limit - 1) .. "…"
+end
+
+-- ---- common inbox/desktop components ------------------------------------
+
+--- A compact status/classification pill.
+function ui.badge(id, value, opts)
+  opts = opts or {}
+  return ui.row(id, {
+    height = opts.height or 18,
+    gap = 3,
+    align_items = "center",
+    padding = { left = 6, right = 6 },
+  }, {
+    ui.text(id .. "-text", value, {
+      size = opts.size or 9,
+      ink = opts.ink or "muted",
+    }),
+  })
+end
+
+--- A keyboard hint, visually quieter than a button.
+function ui.kbd(id, value, opts)
+  opts = opts or {}
+  return ui.text(id, value, {
+    size = opts.size or 10,
+    ink = opts.ink or "muted",
+    width = opts.width,
+    height = opts.height or 18,
+  })
+end
+
+--- A circular initials avatar. The view draws the circle; this is structure.
+function ui.avatar(id, initials, opts)
+  opts = opts or {}
+  local size = opts.size or 34
+  return ui.column(id, {
+    width = size,
+    height = size,
+    align_items = "center",
+    justify_content = "center",
+    flex_shrink = 0,
+  }, {
+    ui.text(id .. "-text", initials or "?", {
+      size = opts.text_size or math.max(10, size * 0.42),
+      ink = opts.ink or "primary",
+    }),
+  })
+end
+
+--- A small all-caps section label.
+function ui.section_label(id, value, opts)
+  opts = opts or {}
+  return ui.text(id, value, {
+    size = opts.size or 9,
+    height = opts.height or 16,
+    ink = opts.ink or "muted",
+  })
+end
+
+--- A centered empty state with a title and optional detail.
+function ui.empty_state(id, title, detail, opts)
+  opts = opts or {}
+  local children = {
+    ui.text(id .. "-title", title, {
+      size = opts.title_size or 15,
+      ink = opts.title_ink or "text",
+      height = 22,
+    }),
+  }
+  if detail and detail ~= "" then
+    ui.push(children, ui.text(id .. "-detail", detail, {
+      size = opts.detail_size or 11,
+      ink = opts.detail_ink or "muted",
+      wrap = true,
+      height = opts.detail_height or 36,
+    }))
+  end
+  return ui.column(id, {
+    flex_grow = 1,
+    gap = 4,
+    align_items = "center",
+    justify_content = "center",
+    padding = { left = 24, right = 24 },
+  }, children)
+end
+
+--- A row that reads as a selectable list item.
+function ui.list_row(id, opts, children)
+  opts = opts or {}
+  local layout = {
+    height = opts.height or 62,
+    direction = "row",
+    gap = opts.gap or 10,
+    align_items = opts.align_items or "center",
+    padding = opts.padding or { top = 8, right = 12, bottom = 8, left = 12 },
+  }
+  if opts.width then layout.width = opts.width end
+  if opts.flex_grow ~= nil then layout.flex_grow = opts.flex_grow end
+  return {
+    id = id,
+    kind = "container",
+    layout = layout,
+    selected = opts.selected == true,
+    unread = opts.unread == true,
+    disabled = opts.disabled == true,
+    children = children or {},
+    action = opts.action,
+  }
+end
+
+--- A command/search bar. The host wires text input; this is the surface.
+function ui.command_bar(id, opts)
+  opts = opts or {}
+  local query = opts.query
+  if query == nil or query == "" then query = opts.placeholder or "Search" end
+  local children = {
+    ui.text(id .. "-icon", opts.icon or "⌕", { size = 13, ink = "muted", width = 18 }),
+    ui.text(id .. "-query", query, {
+      size = opts.size or 12,
+      ink = (opts.query and opts.query ~= "") and "text" or "muted",
+      flex_grow = 1,
+    }),
+  }
+  if opts.hint then
+    ui.push(children, ui.kbd(id .. "-hint", opts.hint, { size = 10 }))
+  end
+  return ui.row(id, {
+    height = opts.height or 40,
+    gap = 8,
+    align_items = "center",
+    padding = { left = 12, right = 12 },
+  }, children)
+end
+
+--- A label/keys pair for shortcut sheets and empty states.
+function ui.shortcut(id, label, keys, opts)
+  opts = opts or {}
+  return ui.row(id, {
+    height = opts.height or 24,
+    gap = 8,
+    align_items = "center",
+  }, {
+    ui.text(id .. "-label", label, { size = opts.size or 11, ink = "text", flex_grow = 1 }),
+    ui.kbd(id .. "-keys", keys, { size = opts.size or 10 }),
+  })
 end
 
 -- ---- actions ------------------------------------------------------------

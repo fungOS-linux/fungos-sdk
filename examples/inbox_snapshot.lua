@@ -9,8 +9,21 @@ return {
     sync = "2m ago",
   },
   counts = { unread = 3, urgent = 1 },
+  remaining = 3,
+  group = "TODAY",
   selected_id = "support/refund-441",
   layout = { list_offset = 0, list_limit = 14 },
+  splits = {
+    { id = "important", label = "Important", count = 3, selected = true },
+    { id = "other", label = "Other", count = 8 },
+    { id = "feed", label = "Feed", count = 12 },
+    { id = "snoozed", label = "Snoozed", count = 2 },
+    { id = "done", label = "Done", count = 0 },
+  },
+  labels = {
+    { id = "support", label = "support", count = 2 },
+    { id = "ci", label = "ci", count = 1 },
+  },
   accounts = {
     { id = "primary", label = "AgentMail", email = "avery@example.com", unread = 3, selected = true },
   },
@@ -45,6 +58,19 @@ return {
       selected = true,
       labels = { "support", "billing" },
       brief = "Two identical charges 90 seconds apart. Refund the duplicate, confirm the remaining renewal, and offer a one-month credit.",
+      messages = {
+        {
+          from = "Maya Chen <maya@example.com>",
+          time = "09:27",
+          preview = "Hi — I was charged twice for the annual plan this morning. The card ending 4412 shows two identical charges. Can you refund the duplicate?",
+        },
+        {
+          from = "Agent <avery@example.com>",
+          time = "09:29",
+          preview = "Thanks Maya — I can see both charges and I’m confirming the duplicate now. I’ll refund it today and send the reference.",
+        },
+      },
+      draft = "Hi Maya — the duplicate $240 charge is refunded (ref rf_441_2). Your annual plan stays active; I added a one-month credit.",
     },
     {
       id = "support/login-882",

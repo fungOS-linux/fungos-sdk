@@ -78,3 +78,77 @@ Uses the global `fungos.ui` profile. App-specific keys are not implemented yet.
 ## Authority
 
 None. The example only emits action intents.
+
+---
+
+# Superhuman-shaped inbox example API
+
+`inbox_superhuman.lua` is the denser, keyboard-first prototype.
+
+## Entrypoint
+
+`inbox_superhuman.lua` exports:
+
+- `M.render(snapshot) -> Canvas scene`
+
+## Snapshot additions
+
+In addition to the fields above:
+
+```lua
+{
+  splits = {
+    { id: string, label: string, count: integer?, selected: boolean? },
+  }?,
+  labels = {
+    { id: string, label: string?, count: integer? },
+  }?,
+  remaining = integer?,
+  group = string?,
+  thread.important = boolean?,
+}
+```
+
+`thread.messages` entries may contain `{ from, time, preview }`.
+`thread.draft` is the current agent/user reply draft.
+
+## Host events
+
+| Event | Target | Meaning |
+| --- | --- | --- |
+| `activate` | `thread-<n>` | select thread |
+| `key` with `j`/`down` | — | next thread |
+| `key` with `k`/`up` | — | previous thread |
+
+Text input, command palette execution, and composer editing are not wired yet.
+
+## Actions
+
+| Action | Payload |
+| --- | --- |
+| `mail.reply` | `{ thread_id: string }` |
+| `mail.reply_all` | `{ thread_id: string }` |
+| `mail.archive` | `{ thread_id: string }` |
+| `mail.reply.send` | `{ thread_id: string }` |
+| `mail.reply.approve` | `{ thread_id: string }` |
+
+## Slots
+
+| Slot | Replacement |
+| --- | --- |
+| `inbox.rail.footer` | one rail child |
+| `inbox.list.header` | one list child |
+| `detail.actions` | one detail child |
+| `detail.before_messages` | one detail child |
+| `empty_state` | one detail child |
+| `inbox.toast` | one root child |
+
+## Stable ids
+
+`inbox-root`, `inbox-rail`, `inbox-list-pane`, `inbox-detail-pane`,
+`inbox-command`, `list-head`, `thread-<n>`, `detail-actions`, `detail-title`,
+`detail-brief`, `composer`, `inbox-status`, `toast`.
+
+## Authority
+
+None. The prototype only emits intents and renders a snapshot.
