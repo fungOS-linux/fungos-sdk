@@ -824,8 +824,11 @@ function ui.scene_surface(width, height, theme)
   function surface:line(id, x1, y1, x2, y2, width, ink, opacity)
     local dx, dy = x2 - x1, y2 - y1
     local length = math.max(math.abs(dx), math.abs(dy))
-    local steps = math.max(1, math.ceil(length))
-    local thick = math.max(1, width or 1)
+    -- The Canvas fallback is a retained scene, not a raster surface: a line
+    -- made of one node per pixel burns the module node budget.  Two-pixel
+    -- blocks stay visually contiguous and leave room for chart axes and text.
+    local steps = math.max(1, math.ceil(length / 6))
+    local thick = math.max(1, width or 1, 6)
     for index = 0, steps do
       local t = index / steps
       self:rect(id .. "-" .. index, x1 + dx * t - thick * 0.5, y1 + dy * t - thick * 0.5,
@@ -1023,8 +1026,11 @@ function ui.surface(width, height, theme)
   function surface:line(id, x1, y1, x2, y2, width, ink, opacity)
     local dx, dy = x2 - x1, y2 - y1
     local length = math.max(math.abs(dx), math.abs(dy))
-    local steps = math.max(1, math.ceil(length))
-    local thick = math.max(1, width or 1)
+    -- The Canvas fallback is a retained scene, not a raster surface: a line
+    -- made of one node per pixel burns the module node budget.  Two-pixel
+    -- blocks stay visually contiguous and leave room for chart axes and text.
+    local steps = math.max(1, math.ceil(length / 6))
+    local thick = math.max(1, width or 1, 6)
     for index = 0, steps do
       local t = index / steps
       self:rect(id .. "-" .. index, x1 + dx * t - thick * 0.5, y1 + dy * t - thick * 0.5,
