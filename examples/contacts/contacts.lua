@@ -76,7 +76,15 @@ local function contact_favorite(contact)
 end
 
 local function contact_mru(contact)
-  return tonumber(contact.last_contacted) or 0
+  local last = tonumber(contact.last_contacted) or 0
+  for _, interaction in ipairs(contact.interactions or {}) do
+    last = math.max(last, tonumber(interaction.last_at_ms) or 0)
+  end
+  return last
+end
+
+local function contact_updated(contact)
+  return tonumber(contact.updated_at_ms) or 0
 end
 
 local function slug(value)
@@ -110,6 +118,11 @@ local function filter_matches(contact, filter_id)
   if filter_id == nil or filter_id == "" or filter_id == "all" then return true end
   if filter_id == "favorites" then return contact_favorite(contact) end
   if filter_id == "recent" then return contact_mru(contact) > 0 end
+  if filter_id == "updated" then
+    local updated = contact_updated(contact)
+    local now = ui.now_ms()
+    return updated > 0 and now > 0 and now - updated <= 30 * 24 * 3600 * 1000
+  end
   if filter_id:sub(1, 4) == "org-" then
     return "org-" .. slug(contact.org) == filter_id
   end
@@ -131,6 +144,13 @@ local function visible_contacts(snapshot, filter_id)
   for _, contact in ipairs(sorted_contacts(snapshot)) do
     if filter_matches(contact, filter_id) then out[#out + 1] = contact end
   end
+  if filter_id == "updated" then
+    table.sort(out, function(a, b)
+      local au, bu = contact_updated(a), contact_updated(b)
+      if au ~= bu then return au > bu end
+      return (a.name or "") < (b.name or "")
+    end)
+  end
   if filter_id == "recent" then
     local recent = {}
     for index = 1, math.min(20, #out) do recent[#recent + 1] = out[index] end
@@ -145,11 +165,13 @@ local function derive_folders(snapshot)
     { id = "all", label = "All", kind = "smart", count = #contacts },
     { id = "favorites", label = "Favorites", kind = "smart", count = 0 },
     { id = "recent", label = "Recent", kind = "smart", count = 0 },
+    { id = "updated", label = "Updated", kind = "smart", count = 0 },
   }
   local orgs, domains, tags = {}, {}, {}
   for _, contact in ipairs(contacts) do
     if contact_favorite(contact) then folders[2].count = folders[2].count + 1 end
     if contact_mru(contact) > 0 then folders[3].count = folders[3].count + 1 end
+    if filter_matches(contact, "updated") then folders[4].count = folders[4].count + 1 end
     local org = contact.org or ""
     if org ~= "" and org ~= contact.name then
       orgs[org] = (orgs[org] or 0) + 1
@@ -323,20 +345,20 @@ local function folder_bar(snapshot, state)
     local id = filter.id or ""
     local selected = id == current
     children[#children + 1] = ui.list_row("contacts-filters-" .. id, {
-      width = 96,
+      flex_grow = 1,
       height = 28,
-      padding = { left = 7, right = 7 },
+      padding = { left = 4, right = 4 },
       selected = selected,
     }, {
       ui.text("contacts-filters-" .. id .. "-label", filter.label or id, {
-        size = 9,
+        size = 8,
         ink = selected and "primary" or "muted",
         flex_grow = 1,
       }),
       ui.text("contacts-filters-" .. id .. "-count", tostring(filter.count or ""), {
-        size = 8,
+        size = 7,
         ink = selected and "primary" or "muted",
-        width = 20,
+        width = 16,
       }),
     })
   end

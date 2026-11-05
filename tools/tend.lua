@@ -195,6 +195,7 @@ local function preflight(source, name, options)
     module = {
       viewport = { width = width, height = height },
       theme = { body = 16 },
+      now = { epoch_ms = os.time() * 1000 },
     },
     canvas = {
       layout = function(tree, available_width, available_height)

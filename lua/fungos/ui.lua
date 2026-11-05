@@ -92,6 +92,15 @@ function ui.viewport(fallback_w, fallback_h)
   return fallback_w or 1086, fallback_h or 1569
 end
 
+--- Host wall clock in Unix milliseconds, when the host provides one.
+function ui.now_ms()
+  local module = rawget(_G, "module")
+  local now = module and module.now
+  if type(now) == "table" and type(now.epoch_ms) == "number" then return now.epoch_ms end
+  if type(now) == "number" then return now end
+  return 0
+end
+
 --- Current module event, if the host routed an activation into this render.
 function ui.event()
   local module = rawget(_G, "module")

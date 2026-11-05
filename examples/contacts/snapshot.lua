@@ -9,13 +9,15 @@ return {
         "Seattle, WA"
       },
       ["birthday"] = "2003-07-06",
+      ["created"] = "2025-01-01T00:00:00Z",
       ["emails"] = {
         "avery@wagar.cc",
         "avery.wagar@gmail.com"
       },
       ["favorite"] = true,
       ["id"] = "contact-avery",
-      ["last_contacted"] = 1759081600000,
+      ["last_contacted"] = 1790563207000,
+      ["last_modified"] = "2026-10-15T00:00:00Z",
       ["name"] = "Avery Wagar",
       ["note"] = "Prefers concise replies. Timezone: Pacific.",
       ["org"] = "Future Present Labs",
@@ -25,20 +27,23 @@ return {
       ["tags"] = {
 
       },
-      ["title"] = "Founder"
+      ["title"] = "Founder",
+      ["updated_at_ms"] = 1791247207000
     },
     {
       ["addresses"] = {
 
       },
       ["birthday"] = "",
+      ["created"] = "2025-01-01T00:00:00Z",
       ["emails"] = {
         "amy@x.ai",
         "amy@wagar.cc"
       },
       ["favorite"] = true,
       ["id"] = "contact-amy",
-      ["last_contacted"] = 1759373200000,
+      ["last_contacted"] = 1790854807000,
+      ["last_modified"] = "2026-10-15T00:00:00Z",
       ["name"] = "Amy Ingram",
       ["note"] = "",
       ["org"] = "x.ai",
@@ -49,20 +54,23 @@ return {
         "assistant",
         "scheduling"
       },
-      ["title"] = "AI Scheduling Assistant"
+      ["title"] = "AI Scheduling Assistant",
+      ["updated_at_ms"] = 1788622807000
     },
     {
       ["addresses"] = {
 
       },
       ["birthday"] = "",
+      ["created"] = "2025-01-01T00:00:00Z",
       ["emails"] = {
         "andrew@x.ai",
         "andrew@wagar.cc"
       },
       ["favorite"] = true,
       ["id"] = "contact-andrew",
-      ["last_contacted"] = 1759664800000,
+      ["last_contacted"] = 1791146407000,
+      ["last_modified"] = "2026-10-15T00:00:00Z",
       ["name"] = "Andrew Ingram",
       ["note"] = "",
       ["org"] = "x.ai",
@@ -73,19 +81,22 @@ return {
         "assistant",
         "scheduling"
       },
-      ["title"] = "AI Scheduling Assistant"
+      ["title"] = "AI Scheduling Assistant",
+      ["updated_at_ms"] = 1793198407000
     },
     {
       ["addresses"] = {
         "Santa Fe, NM"
       },
       ["birthday"] = "1604-01-15",
+      ["created"] = "2025-01-01T00:00:00Z",
       ["emails"] = {
         "cher@kimberlyparry.com"
       },
       ["favorite"] = false,
       ["id"] = "contact-cher",
-      ["last_contacted"] = 1759956400000,
+      ["last_contacted"] = 1791438007000,
+      ["last_modified"] = "2026-10-15T00:00:00Z",
       ["name"] = "Cherilyn Swenson",
       ["note"] = "",
       ["org"] = "Fine Lines Company",
@@ -96,7 +107,8 @@ return {
       ["tags"] = {
 
       },
-      ["title"] = "Sales and Account Management"
+      ["title"] = "Sales and Account Management",
+      ["updated_at_ms"] = 1790574007000
     },
     {
       ["addresses"] = {
@@ -104,13 +116,15 @@ return {
         "Tacoma, WA"
       },
       ["birthday"] = "",
+      ["created"] = "2025-01-01T00:00:00Z",
       ["emails"] = {
         "chris@lockr.io",
         "chris@cellar-door.io"
       },
       ["favorite"] = false,
       ["id"] = "contact-chris",
-      ["last_contacted"] = 1760248000000,
+      ["last_contacted"] = 1791729607000,
+      ["last_modified"] = "2026-10-15T00:00:00Z",
       ["name"] = "Chris Teitzel",
       ["note"] = "",
       ["org"] = "Lockr.io",
@@ -121,20 +135,23 @@ return {
         "security",
         "founder"
       },
-      ["title"] = "Founder / CEO"
+      ["title"] = "Founder / CEO",
+      ["updated_at_ms"] = 1787949607000
     },
     {
       ["addresses"] = {
         "Seattle, WA"
       },
       ["birthday"] = "",
+      ["created"] = "2025-01-01T00:00:00Z",
       ["emails"] = {
         "cindy.ball@oculus.com",
         "cindyball100@gmail.com"
       },
       ["favorite"] = false,
       ["id"] = "contact-cindy",
-      ["last_contacted"] = 1760539600000,
+      ["last_contacted"] = 1792021207000,
+      ["last_modified"] = "2026-10-15T00:00:00Z",
       ["name"] = "Cindy Ball",
       ["note"] = "",
       ["org"] = "Oculus VR",
@@ -145,19 +162,22 @@ return {
         "vr",
         "program"
       },
-      ["title"] = "Program Manager, Oculus Education"
+      ["title"] = "Program Manager, Oculus Education",
+      ["updated_at_ms"] = 1792525207000
     },
     {
       ["addresses"] = {
         "Woodinville, WA"
       },
       ["birthday"] = "1978-01-12",
+      ["created"] = "2025-01-01T00:00:00Z",
       ["emails"] = {
         "cj@mocapnow.com"
       },
       ["favorite"] = false,
       ["id"] = "contact-cj",
-      ["last_contacted"] = 1760831200000,
+      ["last_contacted"] = 1792312807000,
+      ["last_modified"] = "2026-10-15T00:00:00Z",
       ["name"] = "CJ Markham",
       ["note"] = "",
       ["org"] = "StretchSense",
@@ -168,19 +188,22 @@ return {
       ["tags"] = {
 
       },
-      ["title"] = "Motion Capture Solutions Architect"
+      ["title"] = "Motion Capture Solutions Architect",
+      ["updated_at_ms"] = 1789900807000
     },
     {
       ["addresses"] = {
         "Seattle, WA"
       },
       ["birthday"] = "",
+      ["created"] = "2025-01-01T00:00:00Z",
       ["emails"] = {
         "smithstjohn@msn.com"
       },
       ["favorite"] = false,
       ["id"] = "contact-david",
-      ["last_contacted"] = 1761122800000,
+      ["last_contacted"] = 1792604407000,
+      ["last_modified"] = "2026-10-15T00:00:00Z",
       ["name"] = "David St John",
       ["note"] = "",
       ["org"] = "",
@@ -190,19 +213,22 @@ return {
       ["tags"] = {
 
       },
-      ["title"] = ""
+      ["title"] = "",
+      ["updated_at_ms"] = 1787276407000
     },
     {
       ["addresses"] = {
         "Seattle, WA"
       },
       ["birthday"] = "",
+      ["created"] = "2025-01-01T00:00:00Z",
       ["emails"] = {
         "kai@northstar.example"
       },
       ["favorite"] = false,
       ["id"] = "contact-kai",
-      ["last_contacted"] = 1761414400000,
+      ["last_contacted"] = 1792896007000,
+      ["last_modified"] = "2026-10-15T00:00:00Z",
       ["name"] = "Kai Chen",
       ["note"] = "Met at the hardware meetup.",
       ["org"] = "Northstar",
@@ -212,19 +238,22 @@ return {
       ["tags"] = {
 
       },
-      ["title"] = "Design Lead"
+      ["title"] = "Design Lead",
+      ["updated_at_ms"] = 1791852007000
     },
     {
       ["addresses"] = {
         "Portland, OR"
       },
       ["birthday"] = "",
+      ["created"] = "2025-01-01T00:00:00Z",
       ["emails"] = {
         "maya@example.com"
       },
       ["favorite"] = false,
       ["id"] = "contact-maya",
-      ["last_contacted"] = 1761706000000,
+      ["last_contacted"] = 1793187607000,
+      ["last_modified"] = "2026-10-15T00:00:00Z",
       ["name"] = "Maya Chen",
       ["note"] = "",
       ["org"] = "Independent",
@@ -234,19 +263,22 @@ return {
       ["tags"] = {
 
       },
-      ["title"] = "Product Designer"
+      ["title"] = "Product Designer",
+      ["updated_at_ms"] = 1789227607000
     },
     {
       ["addresses"] = {
 
       },
       ["birthday"] = "",
+      ["created"] = "2025-01-01T00:00:00Z",
       ["emails"] = {
         "noah@cedar.example"
       },
       ["favorite"] = false,
       ["id"] = "contact-noah",
-      ["last_contacted"] = 1761997600000,
+      ["last_contacted"] = 1793479207000,
+      ["last_modified"] = "2026-10-15T00:00:00Z",
       ["name"] = "Noah Williams",
       ["note"] = "",
       ["org"] = "Cedar & Co",
@@ -256,19 +288,22 @@ return {
       ["tags"] = {
 
       },
-      ["title"] = "Engineer"
+      ["title"] = "Engineer",
+      ["updated_at_ms"] = 1793803207000
     },
     {
       ["addresses"] = {
         "Bellevue, WA"
       },
       ["birthday"] = "",
+      ["created"] = "2025-01-01T00:00:00Z",
       ["emails"] = {
         "olivia@juniper.example"
       },
       ["favorite"] = false,
       ["id"] = "contact-olivia",
-      ["last_contacted"] = 1762289200000,
+      ["last_contacted"] = 1793770807000,
+      ["last_modified"] = "2026-10-15T00:00:00Z",
       ["name"] = "Olivia Park",
       ["note"] = "",
       ["org"] = "Juniper",
@@ -278,19 +313,22 @@ return {
       ["tags"] = {
 
       },
-      ["title"] = "Recruiter"
+      ["title"] = "Recruiter",
+      ["updated_at_ms"] = 1791178807000
     },
     {
       ["addresses"] = {
         "Palo Alto, CA"
       },
       ["birthday"] = "",
+      ["created"] = "2025-01-01T00:00:00Z",
       ["emails"] = {
         "priya@aperture.example"
       },
       ["favorite"] = false,
       ["id"] = "contact-priya",
-      ["last_contacted"] = 1758980800000,
+      ["last_contacted"] = 1790462407000,
+      ["last_modified"] = "2026-10-15T00:00:00Z",
       ["name"] = "Priya Raman",
       ["note"] = "",
       ["org"] = "Aperture",
@@ -300,19 +338,22 @@ return {
       ["tags"] = {
 
       },
-      ["title"] = "PM"
+      ["title"] = "PM",
+      ["updated_at_ms"] = 1788554407000
     },
     {
       ["addresses"] = {
         "Bend, OR"
       },
       ["birthday"] = "",
+      ["created"] = "2025-01-01T00:00:00Z",
       ["emails"] = {
         "quinn@basalt.example"
       },
       ["favorite"] = false,
       ["id"] = "contact-quinn",
-      ["last_contacted"] = 1759272400000,
+      ["last_contacted"] = 1790754007000,
+      ["last_modified"] = "2026-10-15T00:00:00Z",
       ["name"] = "Quinn Foster",
       ["note"] = "",
       ["org"] = "Basalt",
@@ -322,7 +363,8 @@ return {
       ["tags"] = {
 
       },
-      ["title"] = "Founder"
+      ["title"] = "Founder",
+      ["updated_at_ms"] = 1793130007000
     }
   },
   ["filters"] = {
