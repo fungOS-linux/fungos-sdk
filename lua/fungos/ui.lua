@@ -1,0 +1,349 @@
+-- fungos.ui — a small, declarative UI kit for Spore views.
+--
+-- A Spore UI is a pure projection:
+--
+--   snapshot + theme + viewport -> semantic tree -> host layout -> Canvas scene
+--
+-- The host measures text and resolves geometry. This module only describes
+-- structure, styles, tokens, slots, and scene primitives. It never owns state
+-- and never performs I/O.
+--
+-- The kit intentionally has no `require` dependency so a Spore package can be
+-- composed into a single Canvas module by `mush` or a package builder.
+
+local ui = {}
+
+ui.version = "0.1.0"
+
+local unpack = table.unpack or unpack
+
+-- ---- small utilities ----------------------------------------------------
+
+local function copy(value)
+  if type(value) ~= "table" then return value end
+  local out = {}
+  for key, item in pairs(value) do out[key] = copy(item) end
+  return out
+end
+
+local function merge(base, override)
+  if type(override) ~= "table" then return base end
+  for key, value in pairs(override) do
+    if type(value) == "table" and type(base[key]) == "table" then
+      merge(base[key], value)
+    else
+      base[key] = copy(value)
+    end
+  end
+  return base
+end
+
+ui.copy = copy
+ui.merge = merge
+
+-- ---- profile / theme ----------------------------------------------------
+
+ui.defaults = {
+  density = "comfortable",
+  spacing = { xs = 4, sm = 8, md = 16, lg = 28, xl = 44 },
+  theme = {
+    title = 28,
+    large = 20,
+    body = 16,
+    small = 13,
+    micro = 10,
+    radius = 10,
+  },
+  surfaces = {
+    panel = 0.36,
+    selected = 0.16,
+    raised = 0.82,
+  },
+}
+
+-- The active profile is installed once per composed Spore UI module.
+ui.profile = copy(ui.defaults)
+
+--- Install a user/app profile. The profile is data, never authority.
+function ui.configure(profile, app_id)
+  ui.profile = copy(ui.defaults)
+  merge(ui.profile, profile or {})
+  if app_id and profile and type(profile.apps) == "table" and profile.apps[app_id] then
+    merge(ui.profile, profile.apps[app_id])
+  end
+  return ui.profile
+end
+
+--- Resolve the host theme plus local overrides.
+function ui.theme(base)
+  local out = copy(base or {})
+  merge(out, ui.profile.theme or {})
+  if ui.profile.radius then out.radius = ui.profile.radius end
+  return out
+end
+
+--- Current viewport, in logical pixels. Falls back to the authoring size.
+function ui.viewport(fallback_w, fallback_h)
+  local module = rawget(_G, "module")
+  local vp = module and (module.viewport or (module.theme and module.theme.viewport))
+  if vp and vp.width and vp.height and vp.width > 0 and vp.height > 0 then
+    return vp.width, vp.height
+  end
+  return fallback_w or 1086, fallback_h or 1569
+end
+
+--- Current module event, if the host routed an activation into this render.
+function ui.event()
+  local module = rawget(_G, "module")
+  return module and module.event or nil
+end
+
+-- ---- tree nodes ---------------------------------------------------------
+
+local function node(kind, id, layout, children)
+  return {
+    id = id,
+    kind = kind,
+    layout = layout or {},
+    children = children or {},
+  }
+end
+
+local function text_layout(opts, layout)
+  layout = copy(layout or opts.layout or {})
+  if opts.width ~= nil then layout.width = opts.width end
+  if opts.height ~= nil then layout.height = opts.height end
+  if opts.flex_grow ~= nil then layout.flex_grow = opts.flex_grow end
+  if opts.flex_shrink ~= nil then layout.flex_shrink = opts.flex_shrink end
+  if opts.padding ~= nil then layout.padding = opts.padding end
+  if opts.align ~= nil then layout.align_items = opts.align end
+  return layout
+end
+
+--- A text leaf. `opts`:
+---   size, line_height, wrap, ink, width, height, flex_grow, layout
+function ui.text(id, value, opts)
+  opts = opts or {}
+  local size = opts.size or (ui.profile.theme and ui.profile.theme.body) or 16
+  local line_height = opts.line_height or (size + math.max(3, size * 0.22))
+  local node_out = {
+    id = id,
+    kind = "text",
+    text = tostring(value or ""),
+    ink = opts.ink,
+    style = {
+      size = size,
+      line_height = line_height,
+      wrap = opts.wrap == true,
+    },
+    layout = text_layout(opts, opts.layout),
+  }
+  return node_out
+end
+
+--- Shorthand used by existing views: label(id, value, size, layout).
+function ui.label(id, value, size, layout)
+  return ui.text(id, value, { size = size, layout = layout })
+end
+
+function ui.container(id, layout, children)
+  return node("container", id, layout, children)
+end
+
+function ui.column(id, layout, children)
+  layout = copy(layout or {})
+  layout.direction = "column"
+  return node("container", id, layout, children)
+end
+
+function ui.row(id, layout, children)
+  layout = copy(layout or {})
+  layout.direction = "row"
+  return node("container", id, layout, children)
+end
+
+function ui.rule(id, layout)
+  return node("rule", id, layout)
+end
+
+function ui.spacer(id, layout)
+  return node("spacer", id, layout)
+end
+
+--- A pressable control. The tree only carries the affordance and action id;
+--- Canvas/Unibus decides whether the action is allowed.
+function ui.button(id, label, opts)
+  opts = opts or {}
+  if type(id) == "table" then
+    -- allow ui.button({ id = ..., label = ..., ... })
+    opts = id
+    id = opts.id
+    label = opts.label
+  end
+  local height = opts.height or 34
+  local size = opts.size or 12
+  local layout = copy(opts.layout or {})
+  layout.height = height
+  layout.direction = "row"
+  layout.align_items = "center"
+  layout.justify_content = "center"
+  layout.padding = layout.padding or { left = 12, right = 12 }
+  if opts.flex_grow ~= nil then layout.flex_grow = opts.flex_grow end
+  if opts.width ~= nil then layout.width = opts.width end
+
+  local child = ui.text(id .. "-label", label, {
+    size = size,
+    ink = opts.ink,
+    flex_grow = opts.flex_grow and 1 or nil,
+    layout = { flex_grow = opts.flex_grow and 1 or nil },
+  })
+  return {
+    id = id,
+    kind = "container",
+    layout = layout,
+    children = { child },
+    action = opts.action,
+    variant = opts.variant,
+  }
+end
+
+--- A named extension point. Recipes may replace the fallback at this name.
+function ui.slot(name, fallback)
+  fallback = fallback or ui.container(name, {})
+  fallback.slot = name
+  return fallback
+end
+
+--- A named component supplied by a component/chrome/rice Spore.
+--- The host or `mush` resolves it before layout. If it is unresolved, the
+--- fallback is used and the missing component is reported.
+function ui.component(name, props, children, fallback)
+  return {
+    id = props and props.id or name,
+    kind = "component",
+    name = name,
+    props = props or {},
+    children = children or {},
+    fallback = fallback,
+  }
+end
+
+--- Insert a node into a child list unless it is nil.
+function ui.push(children, child)
+  if child ~= nil then children[#children + 1] = child end
+  return children
+end
+
+-- ---- actions ------------------------------------------------------------
+
+--- An action intent. The Spore/Unibus router owns semantics.
+function ui.action(id, payload)
+  return { action = id, payload = payload }
+end
+
+-- ---- layout + scene -----------------------------------------------------
+
+--- Resolve the tree with host Taffy. The host must expose `canvas.layout`.
+function ui.layout(tree, width, height)
+  return canvas.layout(tree, width, height)
+end
+
+--- Index laid-out nodes by id.
+function ui.index(laid)
+  local by_id = {}
+  for _, item in ipairs((laid and laid.nodes) or {}) do
+    if item.id then by_id[item.id] = item end
+  end
+  return by_id
+end
+
+function ui.find(laid, id)
+  for _, item in ipairs((laid and laid.nodes) or {}) do
+    if item.id == id then return item end
+  end
+end
+
+--- A tiny scene surface in logical pixels.
+---
+--- Surface coordinates are top-left origin. It converts to Canvas's normalized
+--- space, so views never hand-write the -4..4 math.
+function ui.surface(width, height, theme)
+  local surface = {
+    width = width,
+    height = height,
+    theme = theme or ui.theme(),
+    z = 0,
+  }
+
+  local base = surface.theme.body or 16
+
+  function surface:nx(px) return -4 + 8 * px / self.width end
+  function surface:ny(px) return 4 - 8 * px / self.height end
+  function surface:sw(px) return 8 * px / self.width end
+  function surface:sh(px) return 8 * px / self.height end
+  function surface:ts(px) return px / (base * 1.25) end
+
+  function surface:rect(id, x, y, w, h, ink, opacity, radius, z)
+    canvas.rect {
+      id = id,
+      ink = ink or "surface",
+      opacity = opacity == nil and 1.0 or opacity,
+      radius = radius or 0,
+      translation = { self:nx(x), self:ny(y), z or self.z },
+      scale = { self:sw(math.max(1, w)), self:sh(math.max(1, h)), 1 },
+    }
+  end
+
+  function surface:text(id, value, x, y, size, ink, z)
+    canvas.text {
+      id = id,
+      text = tostring(value or ""),
+      ink = ink or "text",
+      translation = { self:nx(x), self:ny(y), z or (self.z + 0.1) },
+      scale = { self:ts(size), self:ts(size), 1 },
+    }
+  end
+
+  function surface:find(laid, id)
+    return ui.find(laid, id)
+  end
+
+  function surface:hit(id, rect, label)
+    widget.hit {
+      id = id,
+      label = label or "hit",
+      x = self:nx(rect.x),
+      y = self:ny(rect.y),
+      width = self:sw(rect.width),
+      height = self:sh(rect.height),
+    }
+  end
+
+  function surface:background(ink)
+    self:rect("surface-bg", 0, 0, self.width, self.height, ink or "background", 1.0, 0, -1)
+  end
+
+  return surface
+end
+
+--- Draw laid-out text nodes with a default ink policy.
+function ui.paint_text(surface, laid, ink_for)
+  for _, item in ipairs((laid and laid.nodes) or {}) do
+    if item.kind == "text" and item.style then
+      local ink = (ink_for and ink_for(item)) or item.ink or "text"
+      surface:text(item.id, item.text, item.rect.x, item.rect.y, item.style.size, ink)
+    end
+  end
+end
+
+--- Draw laid-out rules.
+function ui.paint_rules(surface, laid, ink, opacity)
+  for _, item in ipairs((laid and laid.nodes) or {}) do
+    if item.kind == "rule" then
+      local r = item.rect
+      surface:rect(item.id .. "-line", r.x, r.y, r.width, math.max(1, r.height), ink or "muted", opacity or 0.25, 0)
+    end
+  end
+end
+
+return ui

@@ -1,0 +1,32 @@
+schema = 1
+
+[spore]
+id = "user.hello"
+name = "hello"
+version = "0.1.0"
+license = "MIT"
+summary = "A tiny user Spore"
+
+[engine]
+soil = ">=0.1"
+target = "wasm32-wasip2"
+abi = { canvas = "1.0.0" }
+
+[module]
+path = "module.wasm"
+
+[ui]
+entry = "ui/hello.lua"
+jit = true
+hot_reload = true
+
+[launch]
+default = "canvas"
+surfaces = ["canvas", "web", "native"]
+
+[grants]
+"soil:canvas" = "present the hello surface"
+
+[denied]
+transport = ["socket", "quic", "iroh"]
+host = ["process", "secrets", "environment", "raw-filesystem", "clock"]

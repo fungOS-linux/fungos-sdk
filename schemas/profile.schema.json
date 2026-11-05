@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fungos.dev/schemas/profile.schema.json",
+  "title": "fungOS UI profile",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "density": { "enum": ["compact", "comfortable", "spacious"] },
+    "spacing": {
+      "type": "object",
+      "additionalProperties": { "type": "number", "minimum": 0 }
+    },
+    "theme": { "type": "object" },
+    "radius": { "type": "number", "minimum": 0 },
+    "surfaces": {
+      "type": "object",
+      "additionalProperties": { "type": "number" }
+    },
+    "apps": {
+      "type": "object",
+      "additionalProperties": { "type": "object" }
+    }
+  }
+}

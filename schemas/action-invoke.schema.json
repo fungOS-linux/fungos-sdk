@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fungos.dev/schemas/action-invoke.schema.json",
+  "title": "Unibus action invoke envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "action", "spore", "actor"],
+  "properties": {
+    "kind": { "const": "unibus.action.invoke.v1" },
+    "action": { "type": "string", "minLength": 1 },
+    "spore": { "type": "string", "minLength": 1 },
+    "input": { "type": ["object", "null"] },
+    "actor": { "type": "string", "minLength": 1 },
+    "idempotency_key": { "type": ["string", "null"] },
+    "expected_revision": { "type": ["integer", "null"], "minimum": 0 },
+    "approval": { "type": ["object", "null"] }
+  }
+}
