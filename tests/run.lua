@@ -12,6 +12,10 @@ local action = load_module("lua/fungos/action.lua")
 local validate = load_module("lua/fungos/validate.lua")
 package.loaded["fungos.ui"] = ui
 local chart = load_module("lua/fungos/chart.lua")
+local viz = load_module("lua/fungos/viz.lua")
+local graph = load_module("lua/fungos/graph.lua")
+local map = load_module("lua/fungos/map.lua")
+local atlas = load_module("lua/fungos/atlas.lua")
 
 local passed = 0
 local function ok(value, message)
@@ -204,6 +208,32 @@ for _, node in ipairs(dash_present.nodes) do
   if node.type == "rect" then dash_rects = dash_rects + 1 end
 end
 ok(dash_rects > 20, "dashboard keeps child primitives")
+
+-- Runtime layer composition: chart, graph, map and atlas do not know about each
+-- other, but share one scene and one subsurface prefix.
+local compose_scene = viz.scene { width = 800, height = 600, gap = 6 }
+compose_scene:add(chart.new { title = "c" }:line { id = "l", points = { { 0, 1 }, { 1, 2 }, { 2, 1 } } },
+  { x = 0, y = 0, width = 0.5, height = 0.5 })
+compose_scene:add(graph.new {
+  nodes = { { id = "a", x = 0, y = 0 }, { id = "b", x = 1, y = 1, label = "B" } },
+  edges = { { source = "a", target = "b" } },
+}, { x = 0.5, y = 0, width = 0.5, height = 0.5 })
+compose_scene:add(map.new {
+  zoom = 1,
+  features = { { type = "Feature", properties = { name = "p" }, geometry = { type = "Point", coordinates = { 0, 0 } } } },
+}, { x = 0, y = 0.5, width = 0.5, height = 0.5 })
+compose_scene:add(atlas.new {
+  points = { { 0.2, 0.3, ink = "info" }, { 0.8, 0.7, ink = "success" } },
+}, { x = 0.5, y = 0.5, width = 0.5, height = 0.5 })
+local compose_present = compose_scene:present()
+ok(compose_present.kind == "scene", "viz scene returns one scene")
+ok(#compose_present.nodes > 40, "viz scene contains all four layers")
+local compose_ids = {}
+for _, node in ipairs(compose_present.nodes) do
+  ok(not compose_ids[node.id], "viz layer ids are unique: " .. tostring(node.id))
+  compose_ids[node.id] = true
+end
+ok((compose_ids["chart-1-chart-title"] or compose_ids["layer-1-chart-title"]) ~= nil, "chart layer is namespaced")
 
 -- A view that calls ui.surface can be captured as a portable soil_scene
 -- payload without calling canvas.rect/text or widget.hit.

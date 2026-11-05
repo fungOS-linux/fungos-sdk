@@ -1008,15 +1008,15 @@ function ui.subsurface(parent, x, y, width, height, prefix)
   function sub:ts(px) return parent:ts(px) end
   -- Prefix ids so two composed charts cannot collide in the host scene. The
   -- primitive bodies still live in the parent; only identity is namespaced.
-  function sub:rect(id, ...) return parent:rect(prefix .. id, ...) end
-  function sub:text(id, ...) return parent:text(prefix .. id, ...) end
-  function sub:line(id, ...) return parent:line(prefix .. id, ...) end
-  function sub:polyline(id, ...) return parent:polyline(prefix .. id, ...) end
-  function sub:area(id, ...) return parent:area(prefix .. id, ...) end
-  function sub:points(id, ...) return parent:points(prefix .. id, ...) end
-  function sub:heatmap(id, ...) return parent:heatmap(prefix .. id, ...) end
-  function sub:candles(id, ...) return parent:candles(prefix .. id, ...) end
-  function sub:hit(id, ...) return parent:hit(prefix .. id, ...) end
+  function sub:rect(id, ...) return parent.rect(self, prefix .. id, ...) end
+  function sub:text(id, ...) return parent.text(self, prefix .. id, ...) end
+  function sub:line(id, ...) return parent.line(self, prefix .. id, ...) end
+  function sub:polyline(id, ...) return parent.polyline(self, prefix .. id, ...) end
+  function sub:area(id, ...) return parent.area(self, prefix .. id, ...) end
+  function sub:points(id, ...) return parent.points(self, prefix .. id, ...) end
+  function sub:heatmap(id, ...) return parent.heatmap(self, prefix .. id, ...) end
+  function sub:candles(id, ...) return parent.candles(self, prefix .. id, ...) end
+  function sub:hit(id, ...) return parent.hit(self, prefix .. id, ...) end
   return setmetatable(sub, { __index = parent })
 end
 

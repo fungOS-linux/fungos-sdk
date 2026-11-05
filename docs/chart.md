@@ -128,6 +128,12 @@ the endpoints, and preserves the visually dominant point in each bucket. There
 is no TypeScript runtime and no second chart ABI.
 
 
+## Composition
+
+Charts are ordinary layers. Place them beside graphs, maps and atlases with
+`fungos.viz`; see [viz.md](viz.md). `chart.dashboard` remains a quick 1D/2D
+chart-only grid built on the same `ui.subsurface` mechanism.
+
 ## Churn and warmup
 
 `chart.window(points, count)` returns the newest `count` points without mutating
