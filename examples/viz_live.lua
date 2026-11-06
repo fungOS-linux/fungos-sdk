@@ -21,6 +21,11 @@ return live.scene {
       subtitle = "P50 / P95 / P99 · live 5 Hz · incident replay",
       y_min = 0,
       y_max = 700,
+      annotations = {
+        live.band_annotation { from = 150, to = 172, label = "degraded", color = { 239, 68, 68 }, opacity = 0.06 },
+        live.event { at = 160, label = "cascade", color = { 248, 113, 113 } },
+        live.threshold { value = 300, label = "SLO", color = { 251, 191, 36 }, opacity = 0.55 },
+      },
       series = {
         live.series { id = "p50", label = "P50", kind = "area", source = "latency.p50", color = { 34, 197, 94 }, width = 2, fill_opacity = 0.10, smooth = true },
         live.series { id = "p95", label = "P95", source = "latency.p95", color = { 234, 179, 8 }, width = 2, smooth = true },
@@ -60,6 +65,10 @@ return live.scene {
       subtitle = "errors/s · 4xx baseline / 5xx cascade",
       y_min = 0,
       y_max = 24,
+      annotations = {
+        live.event { at = 160, label = "cascade", color = { 248, 113, 113 } },
+        live.threshold { value = 20, label = "budget", color = { 251, 191, 36 }, opacity = 0.45 },
+      },
       series = {
         live.series { id = "e5xx", label = "5xx", source = "errors.5xx", color = { 239, 68, 68 }, width = 2, smooth = true },
         live.series { id = "e4xx", label = "4xx", source = "errors.4xx", color = { 234, 179, 8 }, width = 1.5, smooth = true },
@@ -73,6 +82,10 @@ return live.scene {
       subtitle = "conns · pool saturation",
       y_min = 0,
       y_max = 220,
+      annotations = {
+        live.event { at = 160, label = "pool saturated", color = { 248, 113, 113 } },
+        live.threshold { value = 180, label = "limit", color = { 251, 191, 36 }, opacity = 0.55 },
+      },
       series = {
         live.series { id = "active", label = "Active", kind = "area", source = "connections.active", color = { 6, 182, 212 }, width = 2, fill_opacity = 0.18, smooth = true },
         live.series { id = "waiting", label = "Waiting", kind = "area", source = "connections.waiting", color = { 236, 72, 153 }, width = 2, fill_opacity = 0.16, smooth = true },

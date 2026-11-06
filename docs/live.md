@@ -178,6 +178,29 @@ Hovering any chart plot shows a linked time cursor in every chart. The tooltip
 stays in the chart under the pointer, while the other panels show the same
 sample and their own values.
 
+## Annotations
+
+Charts can carry incident markers, shaded time bands and horizontal thresholds:
+
+```lua
+live.chart {
+  id = "latency",
+  annotations = {
+    live.band_annotation {
+      from = 150, to = 172, label = "degraded",
+      color = { 239, 68, 68 }, opacity = 0.07,
+    },
+    live.event { at = 160, label = "cascade", color = { 248, 113, 113 } },
+    live.threshold { value = 300, label = "SLO", color = { 251, 191, 36 } },
+  },
+  series = { ... },
+}
+```
+
+Times are seconds into the incident cycle, so event lines recur with the demo
+narrative. Thresholds are data-space values and participate in Y-axis fitting, so
+they are never clipped off the chart.
+
 ## Axes
 
 Y bounds include every visible mark, including candle wicks, band edges and bar

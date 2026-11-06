@@ -61,6 +61,7 @@ function live.chart(opts)
   opts = opts or {}
   local out = layer("chart", opts)
   out.series = opts.series or {}
+  out.annotations = opts.annotations or {}
   out.legend = opts.legend ~= false
   out.style = opts.style or {}
   out.y_min = opts.y_min
@@ -92,6 +93,43 @@ function live.series(opts)
     stride = opts.stride,
     up_color = opts.up_color,
     down_color = opts.down_color,
+  }
+end
+
+--- A vertical event marker at cycle time `at`.
+function live.event(opts)
+  opts = opts or {}
+  return {
+    kind = "line",
+    at = tonumber(opts.at) or 0,
+    label = opts.label,
+    color = opts.color,
+    opacity = opts.opacity,
+  }
+end
+
+--- A shaded time band from `from` to `to`.
+function live.band_annotation(opts)
+  opts = opts or {}
+  return {
+    kind = "band",
+    from = tonumber(opts.from or opts.at) or 0,
+    to = tonumber(opts.to) or 0,
+    label = opts.label,
+    color = opts.color,
+    opacity = opts.opacity,
+  }
+end
+
+--- A horizontal data-space threshold.
+function live.threshold(opts)
+  opts = opts or {}
+  return {
+    kind = "threshold",
+    value = tonumber(opts.value) or 0,
+    label = opts.label,
+    color = opts.color,
+    opacity = opts.opacity,
   }
 end
 
