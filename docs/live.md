@@ -66,6 +66,65 @@ return live.scene {
 system metrics, PTY volume, network counters, audio bands or Spore events can
 replace it without a Lua callback.
 
+## Series types
+
+`live.series` supports the same marks the portable scene vocabulary exposes:
+
+```lua
+-- line / area / scatter
+live.series { label = "p95", source = "latency.p95", kind = "line" }
+live.series { label = "p50", source = "latency.p50", kind = "area", fill_opacity = 0.12 }
+live.series { label = "samples", source = "latency.p99", kind = "scatter" }
+
+-- grouped bars: one mark per sample, grouped by visible bar series
+live.series {
+  label = "5xx", kind = "bar", source = "errors.5xx",
+  stride = 4, bar_width = 0.74, bar_radius = 2, baseline = 0,
+}
+
+-- OHLC candles: close is `source` when `close_source` is omitted
+live.series {
+  label = "cost", kind = "candle", source = "cost.close",
+  open_source = "cost.open", high_source = "cost.high",
+  low_source = "cost.low", close_source = "cost.close",
+  width = 6, stride = 2,
+  up_color = { 34, 197, 94 }, down_color = { 239, 68, 68 },
+}
+
+-- a filled ribbon between two streams
+live.series {
+  label = "P50–P95", kind = "band",
+  source = "latency.p95", band_source = "latency.p50",
+  color = { 234, 179, 8 }, color2 = { 34, 197, 94 },
+  fill_opacity = 0.14,
+}
+
+-- stacked areas: series are accumulated in declaration order
+live.series {
+  label = "Active", kind = "stacked_area",
+  source = "connections.active", color = { 6, 182, 212 },
+}
+live.series {
+  label = "Waiting", kind = "stacked_area",
+  source = "connections.waiting", color = { 236, 72, 153 },
+}
+```
+
+`stride` samples every Nth 5 Hz point. Use it for bars and candles so marks
+remain legible. `baseline` defaults to zero. Bars from several visible series
+are grouped in one category slot; hidden legends reflow the group.
+
+The host exposes these resident streams:
+
+```text
+latency.p50 / latency.p95 / latency.p99
+throughput
+memory / cpu
+errors.5xx / errors.4xx
+connections.active / connections.waiting
+cost.open / cost.high / cost.low / cost.close / cost
+```
+
 ## Host
 
 ```sh

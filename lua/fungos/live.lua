@@ -64,6 +64,17 @@ function live.series(opts)
     fill_opacity = opts.fill_opacity,
     smooth = opts.smooth == true,
     source = opts.source,
+    band_source = opts.band_source,
+    open_source = opts.open_source,
+    high_source = opts.high_source,
+    low_source = opts.low_source,
+    close_source = opts.close_source,
+    baseline = opts.baseline,
+    bar_width = opts.bar_width,
+    bar_radius = opts.bar_radius,
+    stride = opts.stride,
+    up_color = opts.up_color,
+    down_color = opts.down_color,
   }
 end
 

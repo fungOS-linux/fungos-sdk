@@ -921,6 +921,27 @@ function ui.scene_surface(width, height, theme)
     }
   end
 
+  function surface:band(id, upper, lower, ink, opacity)
+    local up, lo = {}, {}
+    for index, point in ipairs(upper or {}) do
+      up[#up + 1] = { self:nx(point[1]), self:ny(point[2]) }
+      local low = (lower or {})[index]
+      if low then lo[#lo + 1] = { self:nx(low[1]), self:ny(low[2]) } end
+    end
+    if #up < 2 or #up ~= #lo then return end
+    local ink_name, rgb = color_parts(ink, "primary")
+    self.scene.nodes[#self.scene.nodes + 1] = {
+      id = self:unique(id),
+      transform = { translation = { 0, 0, self.z }, scale = { 1, 1, 1 } },
+      type = "band",
+      upper = up,
+      lower = lo,
+      ink = ink_name,
+      rgb = rgb,
+      opacity = opacity == nil and 0.14 or opacity,
+    }
+  end
+
   function surface:points(id, points, size, ink, opacity)
     local out = {}
     for _, point in ipairs(points or {}) do
@@ -1062,6 +1083,7 @@ function ui.subsurface(parent, x, y, width, height, prefix)
   function sub:line(id, ...) return parent.line(self, prefix .. id, ...) end
   function sub:polyline(id, ...) return parent.polyline(self, prefix .. id, ...) end
   function sub:area(id, ...) return parent.area(self, prefix .. id, ...) end
+  function sub:band(id, ...) return parent.band(self, prefix .. id, ...) end
   function sub:points(id, ...) return parent.points(self, prefix .. id, ...) end
   function sub:heatmap(id, ...) return parent.heatmap(self, prefix .. id, ...) end
   function sub:candles(id, ...) return parent.candles(self, prefix .. id, ...) end
