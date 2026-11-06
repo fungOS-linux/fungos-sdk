@@ -767,7 +767,8 @@ function methods:render(surface, render_width, render_height)
       if smooth then screen = smooth_screen(screen, style.smooth_steps or 6) end
       if item.kind == "area" and surface.area then
         surface:area(key .. "-fill", screen, area_base, paint,
-          item.fill_opacity or style.area_opacity or 0.22)
+          item.fill_opacity or style.area_opacity or 0.22,
+          item.base_opacity == nil and 0.0 or item.base_opacity)
       end
       if surface.polyline then
         if item.kind == "line" and (tonumber(style.glow) or 0) > 0 then

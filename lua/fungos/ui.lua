@@ -901,7 +901,7 @@ function ui.scene_surface(width, height, theme)
     }
   end
 
-  function surface:area(id, points, baseline, ink, opacity)
+  function surface:area(id, points, baseline, ink, opacity, base_opacity)
     local out = {}
     for _, point in ipairs(points or {}) do
       out[#out + 1] = { self:nx(point[1]), self:ny(point[2]) }
@@ -917,6 +917,7 @@ function ui.scene_surface(width, height, theme)
       ink = ink_name,
       rgb = rgb,
       opacity = opacity == nil and 0.18 or opacity,
+      base_opacity = base_opacity,
     }
   end
 

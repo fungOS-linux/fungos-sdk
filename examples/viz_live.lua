@@ -19,7 +19,7 @@ return live.scene {
       title = "Live fleet latency",
       subtitle = "resident Rust streams · real delta time",
       series = {
-        live.series { id = "p50", label = "p50", source = "latency.p50", color = { 0, 229, 255 }, width = 2, smooth = true },
+        live.series { id = "p50", label = "p50", kind = "area", source = "latency.p50", color = { 0, 229, 255 }, width = 2, fill_opacity = 0.16, smooth = true },
         live.series { id = "p95", label = "p95", source = "latency.p95", color = { 255, 45, 149 }, width = 2, smooth = true },
         live.series { id = "p99", label = "p99", source = "latency.p99", color = { 176, 38, 255 }, width = 2, smooth = true },
       },

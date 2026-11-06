@@ -80,6 +80,8 @@ soil-viz --live /tmp/fungos-viz-live.json --fps 60
 
 The host:
 
+- scales text by the window scale factor so Retina windows do not shrink it;
+- draws a hover crosshair and per-series tooltip from the shared input pointer;
 - reads the spec once;
 - ticks from `Instant` deltas, clamped so a suspended process does not jump;
 - skips a frame when the next deadline has not arrived;

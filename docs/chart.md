@@ -89,8 +89,9 @@ local c = chart.new {
 }
 ```
 
-Lines draw a soft glow pass, then a crisp stroke. `smooth = true` applies a
-Catmull-Rom pass to the projected screen points before the polyline; use it for
+Area fills fade from the series colour at the line to transparent at the
+baseline (`base_opacity = 0`). Lines draw layered glow passes, then a crisp
+stroke. `smooth = true` applies a Catmull-Rom pass to the projected screen points before the polyline; use it for
 presentation charts, not for step data. Plot background, axes, grid and label
 sizes are style values, so a host can get close to the ChartGPU visual language
 without a second chart ABI. Exact pixel parity is not a goal: ChartGPU can
