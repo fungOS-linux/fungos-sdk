@@ -252,7 +252,10 @@ The host:
 - reads the spec once;
 - ticks from `Instant` deltas, clamped so a suspended process does not jump;
 - skips a frame when the next deadline has not arrived;
-- reuses one wgpu device, pipeline set, glyph atlas renderer and target texture;
+- reuses one wgpu device, pipeline set and target texture;
+- reuses persistent rect/text vertex buffers instead of allocating per frame;
+- keeps the glyph atlas texture and bind group resident, uploading only after new glyphs;
+- keeps vertex scratch buffers across frames;
 - hot-reloads the spec file without restarting the window.
 
 `soil-live-frame` renders one deterministic frame:
