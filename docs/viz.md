@@ -52,3 +52,31 @@ Layout is normalized:
 
 Composition is presentation-only. Every layer remains in the same no-authority
 Lua sandbox; no layer gains host authority by being composed.
+
+## Native Soil window
+
+`soil-viz` renders the composed scene in a native winit window using wgpu. It
+does not start Canvas or a Spore runtime; this is Soil owning the host.
+
+```sh
+cargo build -p soil-scene-gpu --bin soil-viz
+```
+
+Then:
+
+```sh
+tools/viz_window.sh
+```
+
+The script captures `examples/viz.lua` + `examples/viz_snapshot.lua` into one
+scene and opens it with `--watch`, so re-running `tend --scene` updates the
+window.
+
+The same scene can be rendered offscreen for screenshots:
+
+```sh
+tend --scene /tmp/viz.json --width 1200 --height 840 \
+  examples/viz.lua examples/viz_snapshot.lua
+soil-scene-gpu --scene /tmp/viz.json --canvas-socket /tmp/unused \
+  --source-id viz --size 1200x840 --rgba /tmp/viz.rgba
+```
