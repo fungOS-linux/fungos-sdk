@@ -28,9 +28,16 @@ local features = {
   { type = "Feature", properties = { name = "NYC", ink = "warning" },
     geometry = { type = "Point", coordinates = { -74, 40.7 } } },
 }
-local chart_series = {}
-for index = 0, 119 do
-  chart_series[#chart_series + 1] = { index, 50 + math.sin(index * 0.03) * 18 }
+local function latency_series(offset, amplitude)
+  local points = {}
+  for index = 0, 119 do
+    points[#points + 1] = {
+      index,
+      offset + math.sin(index * 0.03 + offset) * amplitude
+        + math.sin(index * 0.11 + offset) * amplitude * 0.18,
+    }
+  end
+  return points
 end
 return {
   chart = {
@@ -38,7 +45,11 @@ return {
     subtitle = "chart layer · fungos.chart",
     x = { min = 0, max = 119 },
     y = { min = 0, max = 120 },
-    series = { { id = "p50", label = "p50", ink = "success", points = chart_series, width = 2 } },
+    series = {
+      { id = "p50", label = "p50", color = { 0, 229, 255 }, points = latency_series(50, 16), width = 2 },
+      { id = "p95", label = "p95", color = { 255, 45, 149 }, points = latency_series(62, 19), width = 2 },
+      { id = "p99", label = "p99", color = { 176, 38, 255 }, points = latency_series(74, 22), width = 2 },
+    },
   },
   nodes = nodes,
   edges = edges,

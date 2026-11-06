@@ -39,7 +39,7 @@ chart.merge = merge
 chart.defaults = {
   width = 900,
   height = 520,
-  padding = { top = 38, right = 20, bottom = 36, left = 52 },
+  padding = { top = 46, right = 20, bottom = 14, left = 58 },
   grid = 5,
   legend = true,
   max_points = 1200,
@@ -47,6 +47,38 @@ chart.defaults = {
   annotations = nil,
   title = nil,
   subtitle = nil,
+  smooth = false,
+  palette = {
+    { 0, 229, 255 },
+    { 255, 45, 149 },
+    { 176, 38, 255 },
+    { 0, 245, 160 },
+    { 255, 211, 0 },
+    { 255, 107, 0 },
+    { 77, 91, 255 },
+    { 255, 61, 61 },
+  },
+  style = {
+    title_size = 18,
+    subtitle_size = 10,
+    label_size = 9,
+    plot_opacity = 0.14,
+    plot_radius = 10,
+    grid_opacity = 0.09,
+    grid_x_opacity = 0.05,
+    axis_opacity = 0.18,
+    glow = 0.16,
+    glow_width = 6,
+    area_opacity = 0.22,
+    smooth_steps = 6,
+    legend = {
+      panel = true,
+      marker = 12,
+      gap = 16,
+      row_height = 19,
+      font_size = 10,
+    },
+  },
   x = { label = nil, min = nil, max = nil, format = nil },
   y = { label = nil, min = nil, max = nil, format = nil },
 }
@@ -132,7 +164,6 @@ end
 function methods:line(opts)
   opts = copy(opts or {})
   opts.kind = "line"
-  opts.ink = opts.ink or "primary"
   opts.width = opts.width or 2
   opts.join = opts.join or "round"
   opts.miter_limit = opts.miter_limit or 4.0
@@ -145,7 +176,6 @@ end
 function methods:area(opts)
   opts = copy(opts or {})
   opts.kind = "area"
-  opts.ink = opts.ink or "primary"
   opts.width = opts.width or 2
   opts.fill_opacity = opts.fill_opacity or 0.16
   opts.join = opts.join or "round"
@@ -159,7 +189,6 @@ end
 function methods:scatter(opts)
   opts = copy(opts or {})
   opts.kind = "scatter"
-  opts.ink = opts.ink or "primary"
   opts.size = opts.size or 3
   opts.points = series_points(opts)
   self.series[#self.series + 1] = opts
@@ -170,7 +199,6 @@ end
 function methods:bar(opts)
   opts = copy(opts or {})
   opts.kind = "bar"
-  opts.ink = opts.ink or "primary"
   opts.values = opts.values or {}
   self.series[#self.series + 1] = opts
   return self
@@ -491,6 +519,141 @@ local function ink_for(item, value, lo, hi)
   return "success"
 end
 
+local fallback_inks = { "info", "danger", "primary", "success", "warning", "warning", "primary", "danger" }
+
+local function parse_color(value)
+  if type(value) == "string" and value:sub(1, 1) == "#" then
+    local hex = value:sub(2)
+    if #hex == 3 then
+      hex = hex:sub(1, 1) .. hex:sub(1, 1)
+        .. hex:sub(2, 2) .. hex:sub(2, 2)
+        .. hex:sub(3, 3) .. hex:sub(3, 3)
+    end
+    if #hex == 6 then
+      return {
+        tonumber(hex:sub(1, 2), 16) or 0,
+        tonumber(hex:sub(3, 4), 16) or 0,
+        tonumber(hex:sub(5, 6), 16) or 0,
+      }
+    end
+  end
+  return value
+end
+
+local function series_paint(item, index, o)
+  local color = parse_color(item.color)
+  local ink = item.ink
+  if not color and not ink then
+    local palette = o.palette or {}
+    color = palette[((index - 1) % math.max(1, #palette)) + 1]
+    ink = fallback_inks[((index - 1) % #fallback_inks) + 1]
+  elseif color and not ink then
+    ink = fallback_inks[((index - 1) % #fallback_inks) + 1]
+  end
+  if color then return { ink = ink, rgb = color } end
+  return ink or "primary"
+end
+
+local function series_label(item, index)
+  return item.label or item.id or ("Series " .. index)
+end
+
+local function measure_text(surface, value, size)
+  if surface and type(surface.measure_text) == "function" then
+    local ok, measured = pcall(surface.measure_text, surface, value, size)
+    if ok and type(measured) == "table" and type(measured.width) == "number" then
+      return measured.width
+    end
+  end
+  return #tostring(value or "") * (tonumber(size) or 10) * 0.58
+end
+
+local function legend_config(o)
+  if o.legend == false then return nil end
+  local out = {}
+  for key, value in pairs((o.style and o.style.legend) or {}) do out[key] = value end
+  if type(o.legend) == "table" then
+    for key, value in pairs(o.legend) do out[key] = value end
+  end
+  return out
+end
+
+local function layout_legend(surface, series, left, right, width, o)
+  local cfg = legend_config(o)
+  if not cfg then return nil end
+  local font = math.max(8, tonumber(cfg.font_size) or 10)
+  local gap = math.max(6, tonumber(cfg.gap) or 16)
+  local marker = math.max(8, tonumber(cfg.marker) or 12)
+  local row_height = math.max(font + 5, tonumber(cfg.row_height) or 19)
+  local available = math.max(marker + 24, width - left - right)
+  local rows, row = {}, { items = {}, width = 0 }
+  local x = 0
+  for index, item in ipairs(series) do
+    local label = series_label(item, index)
+    local text_width = measure_text(surface, label, font)
+    local item_width = marker + 6 + text_width
+    if #row.items > 0 and x + item_width > available then
+      rows[#rows + 1] = row
+      row = { items = {}, width = 0 }
+      x = 0
+    end
+    row.items[#row.items + 1] = {
+      x = left + x,
+      paint = series_paint(item, index, o),
+      label = label,
+      kind = item.kind,
+    }
+    x = x + item_width + gap
+    row.width = math.max(row.width, x - gap)
+  end
+  if #row.items > 0 then rows[#rows + 1] = row end
+  local widest = 0
+  for _, item in ipairs(rows) do widest = math.max(widest, item.width) end
+  return {
+    rows = rows,
+    height = #rows * row_height,
+    row_height = row_height,
+    width = widest,
+    font = font,
+    marker = marker,
+    panel = cfg.panel ~= false,
+  }
+end
+
+local function smooth_screen(points, steps)
+  if #points < 3 then return points end
+  steps = math.max(2, math.floor(steps or 6))
+  local out = { points[1] }
+  for index = 1, #points - 1 do
+    local p0 = points[math.max(1, index - 1)]
+    local p1 = points[index]
+    local p2 = points[index + 1]
+    local p3 = points[math.min(#points, index + 2)]
+    for step = 1, steps do
+      local t = step / steps
+      local t2, t3 = t * t, t * t * t
+      local function catmull(a, b, c, d)
+        return 0.5 * (2 * b + (-a + c) * t
+          + (2 * a - 5 * b + 4 * c - d) * t2
+          + (-a + 3 * b - 3 * c + d) * t3)
+      end
+      out[#out + 1] = {
+        catmull(p0[1], p1[1], p2[1], p3[1]),
+        catmull(p0[2], p1[2], p2[2], p3[2]),
+      }
+    end
+  end
+  return out
+end
+
+local function axis_format(value, axis)
+  if type(axis.format) == "function" then
+    local ok, out = pcall(axis.format, value)
+    if ok then return tostring(out) end
+  end
+  return format_number(value)
+end
+
 --- Paint the chart into `surface`. This is what a view calls from render().
 function methods:render(surface, render_width, render_height)
   local viewport_width, viewport_height = ui.viewport(self.opts.width, self.opts.height)
@@ -499,15 +662,28 @@ function methods:render(surface, render_width, render_height)
   local theme = ui.theme(self.opts.theme)
   surface = surface or ui.surface(width, height, theme)
   local o = self.opts
+  local style = o.style or {}
   local pad = o.padding
   local left = pad.left
   local top = pad.top
-  local plot_w = math.max(16, width - pad.left - pad.right)
-  local plot_h = math.max(16, height - pad.top - pad.bottom)
+  local right = pad.right
+  local bottom = pad.bottom
+  local label_size = tonumber(style.label_size) or 9
+  local legend = layout_legend(surface, self.series, left, right, width, o)
+  local legend_height = legend and legend.height or 0
+  local legend_top = height - math.max(8, bottom) - legend_height
+  -- X tick labels sit under the plot; keep them above the legend panel.
+  local plot_bottom = legend and (legend_top - label_size - 12) or (height - bottom)
+  local plot_w = math.max(16, width - left - right)
+  local plot_h = math.max(16, plot_bottom - top)
 
   surface:background("background")
-  surface:text("chart-title", o.title or "", left, 10, 18, "text")
-  if o.subtitle then surface:text("chart-subtitle", o.subtitle, left, 29, 10, "muted") end
+  local title_size = tonumber(style.title_size) or 18
+  local subtitle_size = tonumber(style.subtitle_size) or 10
+  surface:text("chart-title", o.title or "", left, 10, title_size, "text")
+  if o.subtitle then
+    surface:text("chart-subtitle", o.subtitle, left, 12 + title_size, subtitle_size, "muted")
+  end
 
   local xlo, xhi = o.x.min, o.x.max
   local ylo, yhi = o.y.min, o.y.max
@@ -521,26 +697,58 @@ function methods:render(surface, render_width, render_height)
   local function sx(x) return left + (x - xlo) / (xhi - xlo) * plot_w end
   local function sy(y) return top + plot_h - (y - ylo) / (yhi - ylo) * plot_h end
 
-  surface:rect("chart-plot", left, top, plot_w, plot_h, "surface", 0.18, 8)
+  surface:rect("chart-plot", left, top, plot_w, plot_h, "surface",
+    tonumber(style.plot_opacity) or 0.14, tonumber(style.plot_radius) or 10)
+  local axis_opacity = tonumber(style.axis_opacity) or 0.18
+  surface:rect("chart-axis-y", left, top, 1, plot_h, "muted", axis_opacity, 0)
+  surface:rect("chart-axis-x", left, top + plot_h, plot_w, 1, "muted", axis_opacity, 0)
+
   local yticks = nice_ticks(ylo, yhi, o.grid)
   local xticks = nice_ticks(xlo, xhi, o.grid)
+  local grid_opacity = tonumber(style.grid_opacity) or 0.09
+  local grid_x_opacity = tonumber(style.grid_x_opacity) or 0.05
   for _, value in ipairs(yticks) do
     local y = sy(value)
     if y >= top - 0.5 and y <= top + plot_h + 0.5 then
-      surface:rect("chart-grid-y-" .. tostring(value), left, y, plot_w, 1, "muted", 0.12, 0)
-      surface:text("chart-y-" .. tostring(value), format_number(value), 6, y - 6, 9, "muted")
-    end
-  end
-  for _, value in ipairs(xticks) do
-    local x = sx(value)
-    if x >= left - 0.5 and x <= left + plot_w + 0.5 then
-      surface:rect("chart-grid-x-" .. tostring(value), x, top, 1, plot_h, "muted", 0.08, 0)
-      surface:text("chart-x-" .. tostring(value), format_number(value), x + 3, top + plot_h + 6, 9, "muted")
+      local label = axis_format(value, o.y)
+      local label_w = measure_text(surface, label, label_size)
+      surface:rect("chart-grid-y-" .. tostring(value), left, y, plot_w, 1, "muted", grid_opacity, 0)
+      surface:text("chart-y-" .. tostring(value), label,
+        math.max(2, left - label_w - 8), y - label_size * 0.55, label_size, "muted")
     end
   end
 
+  local x_labels, max_label_w = {}, 0
+  for _, value in ipairs(xticks) do
+    local label = axis_format(value, o.x)
+    max_label_w = math.max(max_label_w, measure_text(surface, label, label_size))
+    x_labels[#x_labels + 1] = { value = value, label = label }
+  end
+  local spacing = plot_w / math.max(1, #x_labels - 1)
+  local stride = math.max(1, math.ceil((max_label_w + 12) / math.max(1, spacing)))
+  for index, tick in ipairs(x_labels) do
+    local x = sx(tick.value)
+    if x >= left - 0.5 and x <= left + plot_w + 0.5 then
+      surface:rect("chart-grid-x-" .. tostring(tick.value), x, top, 1, plot_h,
+        "muted", grid_x_opacity, 0)
+      if index == 1 or index == #x_labels or index % stride == 0 then
+        local label_w = measure_text(surface, tick.label, label_size)
+        local label_x = math.max(left, math.min(x - label_w * 0.5, left + plot_w - label_w))
+        surface:text("chart-x-" .. tostring(tick.value), tick.label, label_x,
+          top + plot_h + 7, label_size, "muted")
+      end
+    end
+  end
+
+  if o.y.label then
+    surface:text("chart-y-label", o.y.label, left, top - label_size - 5, label_size, "muted")
+  end
+
+  local area_base = sy(math.max(ylo, math.min(0, yhi)))
+
   for index, item in ipairs(self.series) do
     local key = item.id or ("series-" .. index)
+    local paint = series_paint(item, index, o)
     if item.kind == "line" or item.kind == "area" then
       local points = item.points
       local threshold = item.max_points or o.max_points
@@ -554,15 +762,26 @@ function methods:render(surface, render_width, render_height)
           screen[#screen + 1] = { x, y }
         end
       end
+      local smooth = item.smooth
+      if smooth == nil then smooth = o.smooth end
+      if smooth then screen = smooth_screen(screen, style.smooth_steps or 6) end
       if item.kind == "area" and surface.area then
-        surface:area(key .. "-fill", screen, sy(math.min(0, ylo)), item.ink, item.fill_opacity)
+        surface:area(key .. "-fill", screen, area_base, paint,
+          item.fill_opacity or style.area_opacity or 0.22)
       end
       if surface.polyline then
-        surface:polyline(key, screen, item.width, item.ink, 1.0, item.join, item.miter_limit)
+        if item.kind == "line" and (tonumber(style.glow) or 0) > 0 then
+          surface:polyline(key .. "-glow", screen,
+            (item.width or style.line_width or 2) + (tonumber(style.glow_width) or 6),
+            paint, tonumber(style.glow) or 0.16, item.join, item.miter_limit)
+        end
+        surface:polyline(key, screen, item.width or style.line_width or 2,
+          paint, 1.0, item.join, item.miter_limit)
       else
         for segment = 2, #screen do
           local a, b = screen[segment - 1], screen[segment]
-          surface:line(key .. "-" .. segment, a[1], a[2], b[1], b[2], item.width, item.ink, 1.0)
+          surface:line(key .. "-" .. segment, a[1], a[2], b[1], b[2],
+            item.width or 2, paint, 1.0)
         end
       end
     elseif item.kind == "scatter" then
@@ -573,7 +792,11 @@ function methods:render(surface, render_width, render_height)
           screen[#screen + 1] = { x, y }
         end
       end
-      surface:points(key, screen, item.size, item.ink, item.opacity or 0.9)
+      if (tonumber(style.glow) or 0) > 0 and surface.points then
+        surface:points(key .. "-glow", screen, item.size * 2.4, paint,
+          (tonumber(style.glow) or 0.16) * 0.65)
+      end
+      surface:points(key, screen, item.size, paint, item.opacity or 0.95)
     elseif item.kind == "bar" then
       local count = math.max(1, #item.values)
       local slot = plot_w / count
@@ -583,7 +806,8 @@ function methods:render(surface, render_width, render_height)
         local y = sy(math.max(0, value))
         local zero = sy(math.min(0, value))
         local bar_h = math.max(1, math.abs(zero - y))
-        surface:rect(key .. "-" .. value_index, x, math.min(y, zero), slot * 0.7, bar_h, item.ink, 0.85, 2)
+        surface:rect(key .. "-" .. value_index, x, math.min(y, zero),
+          slot * 0.7, bar_h, paint, item.opacity or 0.88, item.radius or 3)
       end
     elseif item.kind == "heatmap" then
       local rows, cols = math.max(1, item.rows), math.max(1, item.cols)
@@ -596,7 +820,7 @@ function methods:render(surface, render_width, render_height)
       end
       if lo == hi then hi = lo + 1 end
       surface:heatmap(key, values, rows, cols, left, top, plot_w, plot_h,
-        item.min or lo, item.max or hi, item.opacity or 0.9)
+        item.min or lo, item.max or hi, item.opacity or 0.95)
     elseif item.kind == "candles" then
       local screen = {}
       local slot = plot_w / math.max(1, #item.candles)
@@ -612,7 +836,8 @@ function methods:render(surface, render_width, render_height)
           }
         end
       end
-      surface:candles(key, screen, math.max(2, slot * 0.62), item.up_ink, item.down_ink, item.opacity or 1.0)
+      surface:candles(key, screen, math.max(2, slot * 0.62), item.up_ink, item.down_ink,
+        item.opacity or 1.0)
     end
   end
 
@@ -624,25 +849,36 @@ function methods:render(surface, render_width, render_height)
     local top_y, bottom_y = math.min(y0, y1), math.max(y0, y1)
     surface:rect("chart-selection", left_x, top_y, math.max(1, right_x - left_x),
       math.max(1, bottom_y - top_y), "primary", 0.14, 2)
-    surface:rect("chart-selection-top", left_x, top_y, math.max(1, right_x - left_x), 1, "primary", 0.8, 0)
-    surface:rect("chart-selection-bottom", left_x, bottom_y, math.max(1, right_x - left_x), 1, "primary", 0.8, 0)
-    surface:rect("chart-selection-left", left_x, top_y, 1, math.max(1, bottom_y - top_y), "primary", 0.8, 0)
-    surface:rect("chart-selection-right", right_x, top_y, 1, math.max(1, bottom_y - top_y), "primary", 0.8, 0)
+    surface:rect("chart-selection-top", left_x, top_y, math.max(1, right_x - left_x), 1,
+      "primary", 0.8, 0)
+    surface:rect("chart-selection-bottom", left_x, bottom_y, math.max(1, right_x - left_x), 1,
+      "primary", 0.8, 0)
+    surface:rect("chart-selection-left", left_x, top_y, 1, math.max(1, bottom_y - top_y),
+      "primary", 0.8, 0)
+    surface:rect("chart-selection-right", right_x, top_y, 1, math.max(1, bottom_y - top_y),
+      "primary", 0.8, 0)
   end
 
   if o.crosshair then
     local cx, cy = o.crosshair.x, o.crosshair.y
     if finite(cx) then
       local x = sx(cx)
-      surface:rect("chart-crosshair-x", x, top, 1, plot_h, "text", 0.28, 0)
+      surface:rect("chart-crosshair-x", x, top, 1, plot_h, "text", 0.34, 0)
       local label = o.crosshair.x_label or format_number(cx)
-      surface:text("chart-crosshair-x-label", label, x + 4, top + 4, 9, "text")
+      local label_w = measure_text(surface, label, label_size)
+      surface:rect("chart-crosshair-x-label-bg", x + 3, top + 3, label_w + 8, label_size + 6,
+        "background", 0.72, 3)
+      surface:text("chart-crosshair-x-label", label, x + 7, top + 5, label_size, "text")
     end
     if finite(cy) then
       local y = sy(cy)
-      surface:rect("chart-crosshair-y", left, y, plot_w, 1, "text", 0.28, 0)
+      surface:rect("chart-crosshair-y", left, y, plot_w, 1, "text", 0.34, 0)
       local label = o.crosshair.y_label or format_number(cy)
-      surface:text("chart-crosshair-y-label", label, left + plot_w - 38, y - 12, 9, "text")
+      local label_w = measure_text(surface, label, label_size)
+      surface:rect("chart-crosshair-y-label-bg", left + plot_w - label_w - 10, y - label_size - 4,
+        label_w + 8, label_size + 6, "background", 0.72, 3)
+      surface:text("chart-crosshair-y-label", label, left + plot_w - label_w - 6,
+        y - label_size - 2, label_size, "text")
     end
   end
 
@@ -650,17 +886,35 @@ function methods:render(surface, render_width, render_height)
     local x, y = sx(tonumber(note.x) or 0), sy(tonumber(note.y) or 0)
     surface:rect("chart-note-" .. index, x - 2, y - 2, 4, 4, note.ink or "warning", 1.0, 2)
     if note.label then
-      surface:text("chart-note-label-" .. index, note.label, x + 6, y - 14, 9, note.ink or "warning")
+      surface:text("chart-note-label-" .. index, note.label, x + 6, y - 14, label_size,
+        note.ink or "warning")
     end
   end
 
-  if o.legend ~= false and #self.series > 0 then
-    local x = left
-    for index, item in ipairs(self.series) do
-      local label = item.label or item.id or ("Series " .. index)
-      surface:rect("chart-legend-" .. index, x, height - 16, 8, 8, item.ink or "primary", 1.0, 2)
-      surface:text("chart-legend-label-" .. index, label, x + 12, height - 19, 10, "muted")
-      x = x + 24 + #label * 5.5
+  if legend and #legend.rows > 0 then
+    if legend.panel then
+      surface:rect("chart-legend-panel", left - 6, legend_top - 4, legend.width + 12,
+        legend.height + 8, "surface", 0.55, 8)
+    end
+    for row_index, row in ipairs(legend.rows) do
+      local y = legend_top + (row_index - 1) * legend.row_height
+      for item_index, item in ipairs(row.items) do
+        local mid = y + legend.row_height * 0.5
+        if item.kind == "scatter" then
+          surface:rect("chart-legend-" .. row_index .. "-" .. item_index,
+            item.x, mid - 4, 8, 8, item.paint, 1.0, 3)
+        elseif item.kind == "bar" then
+          surface:rect("chart-legend-" .. row_index .. "-" .. item_index,
+            item.x, mid - 5, 8, 10, item.paint, 1.0, 2)
+        else
+          surface:polyline("chart-legend-" .. row_index .. "-" .. item_index,
+            { { item.x, mid }, { item.x + legend.marker, mid } }, 3,
+            item.paint, 1.0, "round")
+        end
+        surface:text("chart-legend-label-" .. row_index .. "-" .. item_index, item.label,
+          item.x + legend.marker + 6, mid - legend.font * 0.55,
+          legend.font, "muted")
+      end
     end
   end
 end

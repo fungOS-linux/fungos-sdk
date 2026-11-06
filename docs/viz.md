@@ -80,3 +80,10 @@ tend --scene /tmp/viz.json --width 1200 --height 840 \
 soil-scene-gpu --scene /tmp/viz.json --canvas-socket /tmp/unused \
   --source-id viz --size 1200x840 --rgba /tmp/viz.rgba
 ```
+
+## Live native host
+
+For a resident Rust animation loop driven by a Lua-owned spec, see
+[live.md](live.md). `fungos.viz` composes a scene now; `fungos.live` configures
+a persistent native host that samples Rust streams and advances by real delta
+time.

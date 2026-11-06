@@ -126,8 +126,41 @@ local line_nodes = {}
 for _, node in ipairs(chart_present.nodes) do
   if node.type == "polyline" then line_nodes[#line_nodes + 1] = node end
 end
-ok(#line_nodes == 1, "line series emits one polyline")
-ok(line_nodes[1].join == "round", "lines default to round joins")
+ok(#line_nodes >= 1, "line series emits a polyline")
+local main_line
+for _, node in ipairs(line_nodes) do
+  if not tostring(node.id):match("%-glow$") then main_line = node end
+end
+ok(main_line ~= nil, "line series emits a non-glow stroke")
+ok(main_line.join == "round", "lines default to round joins")
+
+local colored = chart.new { title = "Colors", width = 400, height = 300 }
+colored:line { id = "neon", label = "neon", color = { 0, 229, 255 }, points = { { 0, 1 }, { 1, 2 } } }
+local colored_present = colored:present()
+local saw_rgb = false
+for _, node in ipairs(colored_present.nodes) do
+  if node.type == "polyline" and type(node.rgb) == "table" and node.rgb[1] == 0 and node.rgb[2] == 229 then
+    saw_rgb = true
+  end
+end
+ok(saw_rgb, "raw series colors cross the scene as rgb")
+
+local narrow = chart.new { title = "Narrow", width = 360, height = 300, padding = { top = 38, right = 12, bottom = 10, left = 44 } }
+for index = 1, 8 do
+  local points = {}
+  for x = 0, 20 do points[#points + 1] = { x, index + math.sin(x * 0.4 + index) } end
+  narrow:line { id = "narrow-" .. index, label = "series " .. index, points = points }
+end
+local narrow_present = narrow:present()
+local legend_rows = {}
+for _, node in ipairs(narrow_present.nodes) do
+  if tostring(node.id):find("chart%-legend%-label") then
+    legend_rows[node.transform.translation[2]] = true
+  end
+end
+local row_count = 0
+for _ in pairs(legend_rows) do row_count = row_count + 1 end
+ok(row_count > 1, "legend wraps into rows when the viewport is narrow")
 
 -- LTTB keeps endpoints and the dominant shape point without a TypeScript runtime.
 local dense = {}

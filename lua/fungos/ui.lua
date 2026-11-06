@@ -41,6 +41,32 @@ end
 ui.copy = copy
 ui.merge = merge
 
+--- Split a semantic ink or a `{ink=..., rgb={r,g,b}}` colour.
+-- Scene surfaces can carry raw RGB; the Canvas fallback keeps the semantic ink.
+local function color_parts(value, fallback)
+  if type(value) == "table" then
+    local ink = value.ink or fallback
+    local rgb = value.rgb
+    if not rgb and type(value[1]) == "number" then
+      rgb = { value[1], value[2], value[3] }
+    end
+    if type(rgb) == "table" and type(rgb[1]) == "number" then
+      return ink, {
+        math.max(0, math.min(255, math.floor(rgb[1]))),
+        math.max(0, math.min(255, math.floor(rgb[2] or 0))),
+        math.max(0, math.min(255, math.floor(rgb[3] or 0))),
+      }
+    end
+    return ink, nil
+  end
+  return value or fallback, nil
+end
+
+local function measure_text(value, size)
+  value, size = tostring(value or ""), tonumber(size) or 10
+  return { width = #value * size * 0.58, height = size * 1.3 }
+end
+
 -- ---- profile / theme ----------------------------------------------------
 
 ui.defaults = {
@@ -794,6 +820,7 @@ function ui.scene_surface(width, height, theme)
   end
 
   function surface:rect(id, x, y, w, h, ink, opacity, radius, z)
+    local ink_name, rgb = color_parts(ink, "surface")
     self.scene.nodes[#self.scene.nodes + 1] = {
       id = self:unique(id),
       transform = {
@@ -801,13 +828,15 @@ function ui.scene_surface(width, height, theme)
         scale = { self:sw(math.max(1, w)), self:sh(math.max(1, h)), 1 },
       },
       type = "rect",
-      ink = ink or "surface",
+      ink = ink_name,
+      rgb = rgb,
       opacity = opacity == nil and 1.0 or opacity,
       radius = radius or 0,
     }
   end
 
   function surface:text(id, value, x, y, size, ink, z)
+    local ink_name, rgb = color_parts(ink, "text")
     self.scene.nodes[#self.scene.nodes + 1] = {
       id = self:unique(id),
       transform = {
@@ -816,9 +845,24 @@ function ui.scene_surface(width, height, theme)
       },
       type = "text",
       text = tostring(value or ""),
-      ink = ink or "text",
+      ink = ink_name,
+      rgb = rgb,
       opacity = 1.0,
     }
+  end
+
+  function surface:measure_text(value, size)
+    local api = rawget(_G, "canvas")
+    if type(api) == "table" and type(api.measure_text) == "function" then
+      local ok, measured = pcall(api.measure_text, tostring(value or ""), {
+        size = tonumber(size) or 10,
+        wrap = false,
+      })
+      if ok and type(measured) == "table" and type(measured.width) == "number" then
+        return measured
+      end
+    end
+    return measure_text(value, size)
   end
 
   function surface:line(id, x1, y1, x2, y2, width, ink, opacity)
@@ -842,13 +886,15 @@ function ui.scene_surface(width, height, theme)
       out[#out + 1] = { self:nx(point[1]), self:ny(point[2]) }
     end
     if #out < 2 then return end
+    local ink_name, rgb = color_parts(ink, "primary")
     self.scene.nodes[#self.scene.nodes + 1] = {
       id = self:unique(id),
       transform = { translation = { 0, 0, self.z }, scale = { 1, 1, 1 } },
       type = "polyline",
       points = out,
       width = self:sh(math.max(1, width or 1)),
-      ink = ink or "primary",
+      ink = ink_name,
+      rgb = rgb,
       opacity = opacity == nil and 1.0 or opacity,
       join = join or "miter",
       miter_limit = miter_limit or 4.0,
@@ -861,13 +907,15 @@ function ui.scene_surface(width, height, theme)
       out[#out + 1] = { self:nx(point[1]), self:ny(point[2]) }
     end
     if #out < 2 then return end
+    local ink_name, rgb = color_parts(ink, "primary")
     self.scene.nodes[#self.scene.nodes + 1] = {
       id = self:unique(id),
       transform = { translation = { 0, 0, self.z }, scale = { 1, 1, 1 } },
       type = "area",
       points = out,
       baseline = self:ny(baseline),
-      ink = ink or "primary",
+      ink = ink_name,
+      rgb = rgb,
       opacity = opacity == nil and 0.18 or opacity,
     }
   end
@@ -1042,9 +1090,10 @@ function ui.surface(width, height, theme)
   function surface:ts(px) return px / (base * 1.25) end
 
   function surface:rect(id, x, y, w, h, ink, opacity, radius, z)
+    local ink_name = color_parts(ink, "surface")
     canvas.rect {
       id = id,
-      ink = ink or "surface",
+      ink = ink_name,
       opacity = opacity == nil and 1.0 or opacity,
       radius = radius or 0,
       translation = { self:nx(x), self:ny(y), z or self.z },
@@ -1053,13 +1102,28 @@ function ui.surface(width, height, theme)
   end
 
   function surface:text(id, value, x, y, size, ink, z)
+    local ink_name = color_parts(ink, "text")
     canvas.text {
       id = id,
       text = tostring(value or ""),
-      ink = ink or "text",
+      ink = ink_name,
       translation = { self:nx(x), self:ny(y), z or (self.z + 0.1) },
       scale = { self:ts(size), self:ts(size), 1 },
     }
+  end
+
+  function surface:measure_text(value, size)
+    local api = rawget(_G, "canvas")
+    if type(api) == "table" and type(api.measure_text) == "function" then
+      local ok, measured = pcall(api.measure_text, tostring(value or ""), {
+        size = tonumber(size) or 10,
+        wrap = false,
+      })
+      if ok and type(measured) == "table" and type(measured.width) == "number" then
+        return measured
+      end
+    end
+    return measure_text(value, size)
   end
 
   function surface:line(id, x1, y1, x2, y2, width, ink, opacity)

@@ -41,12 +41,24 @@ local present = c:present()  -- portable soil_scene document
 
 | Method | Shape |
 | --- | --- |
-| `c:line(opts)` | `points = { {x,y}, ... }`, `ink`, `width`, `join`, `label` |
+| `c:line(opts)` | `points = { {x,y}, ... }`, `color`/`ink`, `width`, `join`, `label`, `smooth` |
 | `c:area(opts)` | line points plus `fill_opacity`; fill drops to zero |
-| `c:scatter(opts)` | `points`, `size`, `ink`, `opacity`, `label` |
-| `c:bar(opts)` | `values = { number, ... }`, `labels`, `ink` |
+| `c:scatter(opts)` | `points`, `size`, `color`/`ink`, `opacity`, `label` |
+| `c:bar(opts)` | `values = { number, ... }`, `labels`, `color`/`ink`, `radius` |
 | `c:heatmap(opts)` | `rows`, `cols`, row-major `values`, optional `min`/`max` |
 | `c:candles(opts)` | `candles = { {x,open,high,low,close}, ... }`, `up_ink`, `down_ink` |
+
+`color` is a raw `{r,g,b}` or `#rrggbb`; `ink` remains the semantic/theme
+fallback. Raw RGB crosses the scene as `rgb`, so the GPU renderer can match a
+palette exactly instead of approximating it with theme tokens.
+
+```lua
+c:line { id = "p50", label = "p50", color = "#00E5FF", points = p50 }
+c:line { id = "p95", label = "p95", color = "#FF2D95", points = p95 }
+```
+
+Series without an explicit `color` or `ink` take the chart palette. The default
+is the ChartGPU dark palette (cyan, magenta, violet, green, yellow, orange).
 
 ## Axes
 
@@ -56,8 +68,34 @@ y = { min = 0, max = 200 }
 ```
 
 `min`/`max` are inferred from the series when omitted. `padding`, `grid`,
-`legend`, `max_points`, `title`, `subtitle`, `crosshair`, `annotations`, and
-`selection` are chart options.
+`legend`, `max_points`, `title`, `subtitle`, `crosshair`, `annotations`,
+`selection`, `palette`, `smooth`, and `style` are chart options.
+
+The legend is viewport aware. It measures labels through `surface:measure_text`,
+wraps into rows inside the available width, reserves its own bottom band, and
+never overlaps x tick labels. When the chart is narrow it grows vertically
+instead of overflowing.
+
+```lua
+local c = chart.new {
+  legend = { position = "bottom", panel = true },
+  style = {
+    plot_opacity = 0.14,
+    grid_opacity = 0.09,
+    glow = 0.16,
+    glow_width = 6,
+    smooth_steps = 6,
+  },
+}
+```
+
+Lines draw a soft glow pass, then a crisp stroke. `smooth = true` applies a
+Catmull-Rom pass to the projected screen points before the polyline; use it for
+presentation charts, not for step data. Plot background, axes, grid and label
+sizes are style values, so a host can get close to the ChartGPU visual language
+without a second chart ABI. Exact pixel parity is not a goal: ChartGPU can
+compile custom WGSL per series, while this path composes stable scene
+primitives.
 
 ```lua
 local c = chart.new {

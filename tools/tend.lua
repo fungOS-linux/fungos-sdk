@@ -162,6 +162,7 @@ local MODULES = {
   ["fungos.graph"] = "lua/fungos/graph.lua",
   ["fungos.map"] = "lua/fungos/map.lua",
   ["fungos.atlas"] = "lua/fungos/atlas.lua",
+  ["fungos.live"] = "lua/fungos/live.lua",
 }
 
 local function module_loaders(sdk)
