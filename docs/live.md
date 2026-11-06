@@ -179,6 +179,10 @@ frame while still moving smoothly at the render rate.
 `seek` is the exception: a deterministic capture rebuilds the whole visible
 window for the requested time. Normal playback and `tick` are append-only.
 
+The built-in incident narrative loops on a 240-second cycle with a 32-second
+pre-roll, so the demo keeps producing new shapes instead of settling into a flat
+recovery. The request-cost stream stays continuous across cycles.
+
 ## Host
 
 ```sh
