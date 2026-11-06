@@ -256,7 +256,8 @@ The host:
 - reuses persistent rect/text vertex buffers instead of allocating per frame;
 - keeps the glyph atlas texture and bind group resident, uploading only after new glyphs;
 - keeps vertex scratch buffers across frames;
-- hot-reloads the spec file without restarting the window.
+- hot-reloads the spec file without restarting the window, checking at most
+  once per second so the event loop is not doing `stat` on every wake;
 
 `soil-live-frame` renders one deterministic frame:
 
