@@ -125,6 +125,21 @@ connections.active / connections.waiting
 cost.open / cost.high / cost.low / cost.close / cost
 ```
 
+## History and animation
+
+The live host samples at a fixed 5 Hz cadence into a resident 160-sample
+history. A sample is immutable once emitted: advancing the clock never
+recomputes old points from a new `now`. During playback the host only appends
+new samples and drops the oldest.
+
+The viewport, not the data, moves. Between two samples the host uses the real
+fractional time to scroll marks left; the newest mark appears when its sample
+closes. That keeps lines and candlesticks from rewriting their history every
+frame while still moving smoothly at the render rate.
+
+`seek` is the exception: a deterministic capture rebuilds the whole visible
+window for the requested time. Normal playback and `tick` are append-only.
+
 ## Host
 
 ```sh
