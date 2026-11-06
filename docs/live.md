@@ -156,6 +156,14 @@ The legend is interactive: clicking an item toggles that series. `visible = fals
 sets the initial state; the item remains in the legend so it can be restored.
 `F11` toggles fullscreen at runtime.
 
+## Axes
+
+Y bounds include every visible mark, including candle wicks, band edges and bar
+baselines. `y_min` and `y_max` are hints: if the data exceeds them the host
+expands to the next nice tick step instead of clipping the chart. Tick labels
+use adaptive precision and compact `k` notation. X labels are relative seconds
+with `now` at the right edge.
+
 ## History and animation
 
 The live host samples at a fixed 5 Hz cadence into a resident 160-sample
