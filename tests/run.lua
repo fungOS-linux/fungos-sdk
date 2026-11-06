@@ -1,5 +1,7 @@
 -- Minimal Lua tests for the SDK. No external test framework.
 
+package.path = "lua/?.lua;" .. package.path
+
 local function load_module(path)
   local chunk = assert(loadfile(path))
   return chunk()
@@ -106,6 +108,19 @@ ok(catalog_bar.children[3].disabled == true, "unavailable action should be disab
 ok(catalog_bar.children[3].disabled_reason == "No account", "unavailable reason should be retained")
 ok(catalog_bar.children[3].confirm == true, "destructive action should confirm")
 ok(catalog_bar.children[3].danger == true, "external action should be marked dangerous")
+
+-- editable text control: empty is valid, the host owns the buffer
+local editor = ui.editor("note-editor", "", {
+  expected_version = 7,
+  action = action.intent("notes.save", { path = "notes/a.md" }),
+  label = "Note body",
+})
+ok(editor.kind == "text_input", "editor should be a text input")
+ok(editor.multiline == true, "editor should be multiline")
+ok(editor.value == "", "empty editor value should be allowed")
+ok(editor.a11y.role == "multiline_textbox", "editor should expose a multiline a11y role")
+ok(editor.expected_version == 7, "editor should carry the version guard")
+validate.tree(ui.column("editor-root", {}, { editor }))
 
 -- config hide/order
 local hidden = config.hidden({ hide = { "rail.tags", "rail.footer" } })
@@ -349,5 +364,19 @@ end, "sparse")
 fails(function()
   validate.tree({ id = "root", kind = "container", children = { { id = "a", kind = "text", text = "bad\ntext", style = { size = 12 } } } })
 end, "control character")
+
+-- shared component package
+local components = load_module("components/fungos.ui.lua")
+ok(components.name == "fungos.ui", "component package should be named")
+ok(type(components.components["fungos.ui/button"]) == "function", "button export should exist")
+ok(type(components.components["fungos.ui/list-row"]) == "function", "list-row export should exist")
+local component_registry = compose.registry()
+component_registry:add(components, "components/fungos.ui.lua")
+local button = compose.apply(ui.component("fungos.ui/button", {
+  id = "shared-button",
+  label = "Save",
+}), component_registry, {})
+ok(button.id == "shared-button", "shared button should resolve")
+ok(button.role == "button", "shared button should retain button role")
 
 print(string.format("sdk lua: %d assertions passed", passed))

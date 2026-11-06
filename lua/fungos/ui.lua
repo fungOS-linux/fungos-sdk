@@ -552,6 +552,60 @@ function ui.list_row(id, opts, children)
   }
 end
 
+--- An editable text field. The host owns the edit buffer, selection, IME and
+--- commit timing; the tree only names the initial value and the intent that
+--- will save it. `multiline` selects the editor presentation.
+---
+---   ui.text_input("note-editor", snapshot.editor.text, {
+---     multiline = true,
+---     expected_version = snapshot.editor.expected_version,
+---     action = action.intent("notes.save", { path = snapshot.selected }),
+---   })
+function ui.text_input(id, value, opts)
+  opts = opts or {}
+  local multiline = opts.multiline == true
+  local layout = copy(opts.layout or {})
+  if opts.width ~= nil then layout.width = opts.width end
+  layout.height = opts.height or (multiline and 240 or 34)
+  if opts.flex_grow ~= nil then layout.flex_grow = opts.flex_grow end
+  if opts.flex_shrink ~= nil then layout.flex_shrink = opts.flex_shrink end
+  layout.direction = multiline and "column" or "row"
+  layout.align_items = multiline and "stretch" or "center"
+  layout.padding = opts.padding or { left = 10, right = 10, top = 6, bottom = 6 }
+  return {
+    id = id,
+    kind = "text_input",
+    value = tostring(value or ""),
+    placeholder = opts.placeholder and tostring(opts.placeholder) or nil,
+    multiline = multiline,
+    read_only = opts.read_only == true,
+    action = opts.action,
+    expected_version = opts.expected_version,
+    role = "textbox",
+    a11y = {
+      role = multiline and "multiline_textbox" or "textbox",
+      label = opts.label or "Text",
+      value = tostring(value or ""),
+      multiline = multiline,
+      read_only = opts.read_only == true,
+      description = opts.description,
+    },
+    style = {
+      size = opts.size or (ui.profile.theme and ui.profile.theme.body) or 16,
+      line_height = opts.line_height,
+      wrap = multiline,
+    },
+    layout = layout,
+  }
+end
+
+--- A multiline text editor. Shorthand for `ui.text_input(..., multiline = true)`.
+function ui.editor(id, value, opts)
+  opts = copy(opts or {})
+  opts.multiline = true
+  return ui.text_input(id, value, opts)
+end
+
 --- A command/search bar. The host wires text input; this is the surface.
 function ui.command_bar(id, opts)
   opts = opts or {}
@@ -766,7 +820,18 @@ end
 -- ---- layout + scene -----------------------------------------------------
 
 --- Resolve the tree with host Taffy. The host must expose `canvas.layout`.
+--- Install the host/tend component resolver. Called immediately before layout
+--- so `ui.component(...)` and `ui.slot(...)` become real nodes. The resolver is
+--- presentation-only and is not available as authority to a Spore.
+ui._component_resolver = nil
+function ui.set_component_resolver(resolver)
+  ui._component_resolver = resolver
+end
+
 function ui.layout(tree, width, height)
+  if ui._component_resolver then
+    tree = ui._component_resolver(tree)
+  end
   return canvas.layout(tree, width, height)
 end
 

@@ -69,8 +69,8 @@ tend check examples/inbox.lua examples/inbox_snapshot.lua
 tend examples/inbox.lua --snapshot examples/inbox_snapshot.lua --surface inbox
 ```
 
-`tend` composes the SDK, the view, a snapshot, and the user profile into a
-preview module, runs a fake-host preflight, and only then writes/reloads Canvas.
+`tend` composes the SDK, the view, components, a snapshot, and the user profile
+into a module, runs a fake-host preflight, and only then writes/reloads Canvas.
 The preflight catches sparse child arrays, duplicate ids, invalid kinds, empty or
 non-printable scene text, non-finite geometry, and malformed scene calls.
 
@@ -91,6 +91,18 @@ SOIL_LAYOUT=../soil/target/debug/soil-layout \
 
 A host with a GPU scene renderer can present the result as a Spore-owned texture.
 The Lua UI remains a pure projection; layout and pixels still belong to the host.
+
+Build with shared components:
+
+```bash
+tend build examples/components/demo.lua examples/components/snapshot.lua \
+  --component components/fungos.ui.lua \
+  --name components-demo \
+  --out dist/
+```
+
+See [`docs/components.md`](docs/components.md) and
+[`docs/package-model.md`](docs/package-model.md).
 
 ## User repos
 

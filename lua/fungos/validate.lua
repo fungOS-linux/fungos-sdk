@@ -22,6 +22,7 @@ local MAX_DEPTH = 64
 local KINDS = {
   container = true,
   text = true,
+  text_input = true,
   rule = true,
   spacer = true,
   component = true,
@@ -151,6 +152,30 @@ local function walk(node, path, state, depth)
     end
     if node.style.size == nil then
       error(path .. ".style.size is required for text", 3)
+    end
+  end
+
+  if node.kind == "text_input" then
+    if type(node.value) ~= "string" then
+      error(path .. ".value must be a string", 3)
+    end
+    if utf8 and utf8.len and not utf8.len(node.value) then
+      error(path .. ".value must be valid UTF-8", 3)
+    end
+    if node.value:find("%z") then
+      error(path .. ".value contains NUL", 3)
+    end
+    if node.multiline ~= nil and type(node.multiline) ~= "boolean" then
+      error(path .. ".multiline must be a boolean", 3)
+    end
+    if node.read_only ~= nil and type(node.read_only) ~= "boolean" then
+      error(path .. ".read_only must be a boolean", 3)
+    end
+    if node.style == nil then
+      error(path .. ".style is required for text_input", 3)
+    end
+    if node.style.size == nil then
+      error(path .. ".style.size is required for text_input", 3)
     end
   end
 
