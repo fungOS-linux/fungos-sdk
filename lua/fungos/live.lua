@@ -108,6 +108,20 @@ function live.event(opts)
   }
 end
 
+--- A key point marked on the X axis. `line = false` keeps only the marker and
+-- label.
+function live.x_event(opts)
+  opts = opts or {}
+  return {
+    kind = "x_event",
+    at = tonumber(opts.at) or 0,
+    label = opts.label,
+    color = opts.color,
+    opacity = opts.opacity,
+    line = opts.line ~= false,
+  }
+end
+
 --- A shaded time band from `from` to `to`.
 function live.band_annotation(opts)
   opts = opts or {}

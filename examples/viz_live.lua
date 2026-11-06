@@ -24,6 +24,7 @@ return live.scene {
       annotations = {
         live.band_annotation { from = 150, to = 172, label = "degraded", color = { 239, 68, 68 }, opacity = 0.06 },
         live.event { at = 160, label = "cascade", color = { 248, 113, 113 } },
+        live.x_event { at = 150, label = "deploy", line = false, color = { 96, 165, 250 } },
         live.threshold { value = 300, label = "SLO", color = { 251, 191, 36 }, opacity = 0.55 },
       },
       series = {

@@ -191,6 +191,10 @@ live.chart {
       color = { 239, 68, 68 }, opacity = 0.07,
     },
     live.event { at = 160, label = "cascade", color = { 248, 113, 113 } },
+    live.x_event {
+      at = 150, label = "deploy", line = false,
+      color = { 96, 165, 250 },
+    },
     live.threshold { value = 300, label = "SLO", color = { 251, 191, 36 } },
   },
   series = { ... },
@@ -198,8 +202,9 @@ live.chart {
 ```
 
 Times are seconds into the incident cycle, so event lines recur with the demo
-narrative. Thresholds are data-space values and participate in Y-axis fitting, so
-they are never clipped off the chart.
+narrative. `x_event` marks a key point on the X axis with a label; it can keep a
+faint vertical guide or only the axis marker. Thresholds are data-space values
+and participate in Y-axis fitting, so they are never clipped off the chart.
 
 ## Axes
 
