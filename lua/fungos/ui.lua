@@ -831,7 +831,7 @@ function ui.scene_surface(width, height, theme)
       ink = ink_name,
       rgb = rgb,
       opacity = opacity == nil and 1.0 or opacity,
-      radius = radius or 0,
+      radius = math.min(self:sw(radius or 0), self:sh(radius or 0)),
     }
   end
 

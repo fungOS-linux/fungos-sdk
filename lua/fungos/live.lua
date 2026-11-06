@@ -47,6 +47,8 @@ function live.chart(opts)
   local out = layer("chart", opts)
   out.series = opts.series or {}
   out.style = opts.style or {}
+  out.y_min = opts.y_min
+  out.y_max = opts.y_max
   return out
 end
 
@@ -57,6 +59,7 @@ function live.series(opts)
     label = opts.label,
     kind = opts.kind or "line",
     color = opts.color,
+    color2 = opts.color2,
     width = opts.width,
     fill_opacity = opts.fill_opacity,
     smooth = opts.smooth == true,
