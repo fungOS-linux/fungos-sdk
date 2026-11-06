@@ -125,6 +125,21 @@ connections.active / connections.waiting
 cost.open / cost.high / cost.low / cost.close / cost
 ```
 
+Real host sources are also resident, sampled when each new 5 Hz history entry is
+appended:
+
+```text
+system.cpu
+system.memory
+system.load1 / load5 / load15
+system.processes
+```
+
+They come from the native Rust source adapter, not from Lua. The
+`host-metrics` Spore uses these sources. CPU and memory refresh every sample;
+the process table refreshes every two seconds to avoid turning `/proc` walking
+into the hot loop.
+
 ## Viewport, scaling and legend
 
 The spec's `width` and `height` are the initial window/design size, not a fixed
@@ -205,6 +220,26 @@ Times are seconds into the incident cycle, so event lines recur with the demo
 narrative. `x_event` marks a key point on the X axis with a label; it can keep a
 faint vertical guide or only the axis marker. Thresholds are data-space values
 and participate in Y-axis fitting, so they are never clipped off the chart.
+
+## Smoothing
+
+Display interpolation is separate from history. The sample values stay immutable;
+only the newest rendered point and Y bounds ease:
+
+```lua
+live.chart {
+  y_lerp = 0.20, -- seconds of exponential Y-bound smoothing; 0 snaps
+  series = {
+    live.series {
+      source = "system.cpu",
+      kind = "area",
+      interpolate = true, -- smooth the newest line/area/band point
+    },
+  },
+}
+```
+
+Candles and bars stay discrete. Stacked areas are currently not tip-interpolated.
 
 ## Axes
 

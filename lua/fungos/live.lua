@@ -66,6 +66,7 @@ function live.chart(opts)
   out.style = opts.style or {}
   out.y_min = opts.y_min
   out.y_max = opts.y_max
+  out.y_lerp = opts.y_lerp
   return out
 end
 
@@ -81,6 +82,7 @@ function live.series(opts)
     width = opts.width,
     fill_opacity = opts.fill_opacity,
     smooth = opts.smooth == true,
+    interpolate = opts.interpolate == true,
     source = opts.source,
     band_source = opts.band_source,
     open_source = opts.open_source,
