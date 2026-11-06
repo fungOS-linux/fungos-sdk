@@ -37,6 +37,8 @@ function live.scene(opts)
     height = tonumber(opts.height) or 840,
     gap = tonumber(opts.gap) or 10,
     fps = tonumber(opts.fps) or 60,
+    fullscreen = opts.fullscreen == true,
+    ui_scale = tonumber(opts.ui_scale) or 1,
     layers = opts.layers or {},
   }
 end
@@ -46,6 +48,7 @@ function live.chart(opts)
   opts = opts or {}
   local out = layer("chart", opts)
   out.series = opts.series or {}
+  out.legend = opts.legend ~= false
   out.style = opts.style or {}
   out.y_min = opts.y_min
   out.y_max = opts.y_max
@@ -57,6 +60,7 @@ function live.series(opts)
   return {
     id = opts.id,
     label = opts.label,
+    visible = opts.visible,
     kind = opts.kind or "line",
     color = opts.color,
     color2 = opts.color2,

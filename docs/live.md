@@ -125,6 +125,37 @@ connections.active / connections.waiting
 cost.open / cost.high / cost.low / cost.close / cost
 ```
 
+## Viewport, scaling and legend
+
+The spec's `width` and `height` are the initial window/design size, not a fixed
+canvas. The native host lays the scene out against the actual logical window
+viewport, so resizing reflows panels instead of stretching them.
+
+Lua owns two scaling controls:
+
+```lua
+return live.scene {
+  width = 1200,
+  height = 840,
+  fullscreen = false,   -- true opens the native window borderless fullscreen
+  ui_scale = 1.0,       -- >1 shows fewer, bigger UI elements
+  layers = {
+    live.chart {
+      id = "errors",
+      legend = true,    -- false hides the legend and gives the plot more height
+      series = {
+        live.series { label = "5xx", source = "errors.5xx", visible = true },
+        live.series { label = "4xx", source = "errors.4xx", visible = false },
+      },
+    },
+  },
+}
+```
+
+The legend is interactive: clicking an item toggles that series. `visible = false`
+sets the initial state; the item remains in the legend so it can be restored.
+`F11` toggles fullscreen at runtime.
+
 ## History and animation
 
 The live host samples at a fixed 5 Hz cadence into a resident 160-sample
