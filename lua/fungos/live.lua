@@ -28,6 +28,18 @@ local function layer(kind, opts)
   }
 end
 
+--- An optional automatic panel grid. Layer `rect` values are ignored when a
+-- grid is present.
+function live.grid(opts)
+  opts = opts or {}
+  return {
+    columns = tonumber(opts.columns),
+    rows = tonumber(opts.rows),
+    gap = tonumber(opts.gap),
+    padding = tonumber(opts.padding),
+  }
+end
+
 --- A resident live scene. `fps` is a ceiling; the host advances by real dt.
 function live.scene(opts)
   opts = opts or {}
@@ -39,6 +51,7 @@ function live.scene(opts)
     fps = tonumber(opts.fps) or 60,
     fullscreen = opts.fullscreen == true,
     ui_scale = tonumber(opts.ui_scale) or 1,
+    grid = opts.grid,
     layers = opts.layers or {},
   }
 end

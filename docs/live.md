@@ -156,6 +156,28 @@ The legend is interactive: clicking an item toggles that series. `visible = fals
 sets the initial state; the item remains in the legend so it can be restored.
 `F11` toggles fullscreen at runtime.
 
+Panels can be placed manually with `rect`, or laid out automatically:
+
+```lua
+return live.scene {
+  grid = live.grid { columns = 2, gap = 12, padding = 0 },
+  layers = {
+    live.chart { id = "a", title = "A", series = { ... } },
+    live.chart { id = "b", title = "B", series = { ... } },
+    live.chart { id = "c", title = "C", series = { ... } },
+    live.chart { id = "d", title = "D", series = { ... } },
+  },
+}
+```
+
+With a grid, layer `rect` values are ignored and declaration order fills the
+cells. `columns` defaults to 2 (3 for more than four layers); `rows` defaults
+from the layer count.
+
+Hovering any chart plot shows a linked time cursor in every chart. The tooltip
+stays in the chart under the pointer, while the other panels show the same
+sample and their own values.
+
 ## Axes
 
 Y bounds include every visible mark, including candle wicks, band edges and bar
