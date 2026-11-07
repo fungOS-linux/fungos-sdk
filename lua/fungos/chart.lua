@@ -39,7 +39,7 @@ chart.merge = merge
 chart.defaults = {
   width = 900,
   height = 520,
-  padding = { top = 46, right = 20, bottom = 14, left = 58 },
+  padding = { top = 58, right = 20, bottom = 14, left = 58 },
   grid = 5,
   legend = true,
   max_points = 1200,
@@ -680,9 +680,9 @@ function methods:render(surface, render_width, render_height)
   surface:background("background")
   local title_size = tonumber(style.title_size) or 18
   local subtitle_size = tonumber(style.subtitle_size) or 10
-  surface:text("chart-title", o.title or "", left, 10, title_size, "text")
+  surface:text("chart-title", o.title or "", left, 8, title_size, "text")
   if o.subtitle then
-    surface:text("chart-subtitle", o.subtitle, left, 12 + title_size, subtitle_size, "muted")
+    surface:text("chart-subtitle", o.subtitle, left, 20 + title_size, subtitle_size, "muted")
   end
 
   local xlo, xhi = o.x.min, o.x.max
