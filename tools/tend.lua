@@ -393,7 +393,15 @@ local function host_env(options)
     },
     canvas = {
       layout = function(tree, available_width, available_height)
-        validate.tree(tree)
+        -- Collect every problem instead of raising on the first: while fixing a
+        -- tree, first-error-only costs one edit-and-rerun cycle per mistake.
+        -- The tree is still refused, so nothing lays out a tree it cannot trust.
+        local problems, capped = validate.errors(tree)
+        if #problems > 0 then
+          -- error(..., 0): the report is the message, not a position inside
+          -- tend's own compose scaffold.
+          error(validate.report(problems, capped), 0)
+        end
         local w, h = available_width or width, available_height or height
         -- --layout wins over the environment so a run can be pinned without
         -- leaking state into the shell it was launched from.

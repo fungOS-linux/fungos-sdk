@@ -68,6 +68,39 @@ return function(T, root)
         T.truthy(ok, "tend list failed")
         T.contains(output, "member.lua", "member not listed")
       end },
+
+      { name = "check prints every preflight problem, not just the first", fn = function()
+        -- Both mistakes are in one tree. First-error-only made the developer fix
+        -- one, rerun, and only then discover the other, which is one edit cycle
+        -- per mistake for no reason.
+        local dir = temp_dir("preflight")
+        write(dir .. "/view.lua", table.concat({
+          'local ui = require("fungos.ui")',
+          'local M = {}',
+          'function M.render(snapshot)',
+          '  local tree = ui.column("root", {}, {',
+          '    ui.text("dup", "one", { size = 12 }),',
+          '    ui.text("dup", "two", { size = 12 }),',
+          '    { id = "broken", kind = "bogus" },',
+          '  })',
+          '  return ui.layout(tree, 800, 600)',
+          'end',
+          'return M',
+          '',
+        }, "\n"))
+        local out_path = os.tmpname() .. ".out"
+        local ok, _, code = os.execute(string.format(
+          "cd %q && %s %q check %q --snapshot examples/inbox_snapshot.lua "
+            .. "--allow-undocumented > %q 2>&1",
+          absolute_root(), interpreter(), absolute_root() .. "/tools/tend.lua",
+          dir .. "/view.lua", out_path))
+        local output = read(out_path)
+        os.execute("rm -rf " .. string.format("%q", dir) .. " " .. string.format("%q", out_path))
+        T.truthy(not (ok == true or ok == 0), "a broken tree should fail preflight")
+        T.equal(code, 2, "exit code")
+        T.contains(output, "tree.children[2] duplicate node id dup", "duplicate reported")
+        T.contains(output, "tree.children[3].kind is invalid: bogus", "invalid kind reported")
+      end },
     },
   }
 end

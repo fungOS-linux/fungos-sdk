@@ -223,6 +223,86 @@ return function(T, root)
         T.equal(validate.tree(tree), tree, "same table back")
       end },
 
+      -- validate.errors ---------------------------------------------------
+      { name = "errors stays quiet for a valid tree", fn = function()
+        local problems, capped = validate.errors(box("root", { text_node("t", "hi") }))
+        T.equal(#problems, 0, "problem count")
+        T.equal(capped, false, "not capped")
+      end },
+
+      { name = "errors reports every independent problem in one pass", fn = function()
+        -- The failure this prevents: two mistakes, two edit-and-rerun cycles,
+        -- because the second one only appears after the first is fixed.
+        local tree = box("root", {
+          box("left", { text_node("dup", "ok"), text_node("dup", "again") }),
+          box("right", { { id = "broken", kind = "bogus" } }),
+        })
+        local problems = validate.errors(tree)
+        T.equal(#problems, 2, "problem count")
+        T.equal(problems[1].path, "tree.children[1].children[2]", "duplicate path")
+        T.equal(problems[1].message, "duplicate node id dup", "duplicate message")
+        T.equal(problems[2].path, "tree.children[2].children[1].kind", "kind path")
+        T.equal(problems[2].message, "is invalid: bogus", "kind message")
+      end },
+
+      { name = "errors refuses to recurse into a cycle", fn = function()
+        local root = box("root")
+        root.children = { root }
+        local problems = validate.errors(root)
+        T.equal(#problems, 1, "problem count")
+        T.equal(problems[1].path, "tree.children[1]", "cycle path")
+        T.equal(problems[1].message, "contains a cycle or reused table", "cycle message")
+      end },
+
+      { name = "errors stops at the cap instead of dumping a whole tree", fn = function()
+        local children = {}
+        for index = 1, 80 do
+          children[index] = { id = "n" .. index, kind = "bogus" }
+        end
+        local problems, capped = validate.errors(box("root", children))
+        T.equal(#problems, 50, "problem count")
+        T.equal(capped, true, "cap reported")
+      end },
+
+      { name = "tree still raises the first problem", fn = function()
+        -- validate.tree is the host's compatibility surface: it must keep
+        -- refusing a tree, not start returning a list.
+        local tree = box("root", {
+          text_node("dup", "ok"), text_node("dup", "again"),
+          { id = "broken", kind = "bogus" },
+        })
+        T.error_matches(function() validate.tree(tree) end,
+          "duplicate node id dup", "first problem")
+      end },
+
+      -- validate.report ---------------------------------------------------
+      { name = "report renders one problem as the sentence tree would raise", fn = function()
+        local problems = validate.errors(box("root", { { id = "broken", kind = "bogus" } }))
+        T.equal(validate.report(problems, false),
+          "tree.children[1].kind is invalid: bogus", "rendered report")
+      end },
+
+      { name = "report renders several problems one per line with their paths", fn = function()
+        local problems = validate.errors(box("root", {
+          { id = "broken", kind = "bogus" },
+          { id = "dup", kind = "container" },
+          { id = "dup", kind = "container" },
+        }))
+        T.equal(validate.report(problems, false), table.concat({
+          "2 problems in the UI tree:",
+          "tree.children[1].kind is invalid: bogus",
+          "tree.children[3] duplicate node id dup",
+        }, "\n"), "rendered report")
+      end },
+
+      { name = "report says when the cap stopped the walk", fn = function()
+        local children = {}
+        for index = 1, 80 do children[index] = { id = "n" .. index, kind = "bogus" } end
+        local problems, capped = validate.errors(box("root", children))
+        T.contains(validate.report(problems, capped), "(stopped after 50 problems)",
+          "cap notice")
+      end },
+
       -- canvas.rect -----------------------------------------------------
       { name = "rect rejects a non-table", fn = function()
         T.error_matches(function() validate.rect(nil) end, "canvas.rect needs a table")
