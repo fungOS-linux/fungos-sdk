@@ -95,8 +95,10 @@ local function check_api(options)
 end
 
 local function shell_lines(command)
-  local pipe = io.popen(command)
-  if not pipe then return {} end
+  local pipe, popen_error = io.popen(command)
+  if not pipe then
+    error("cannot run " .. command .. ": " .. tostring(popen_error), 2)
+  end
   local out = {}
   for raw in pipe:lines() do
     local line = raw:match("^%s*(.-)%s*$")
@@ -109,7 +111,15 @@ end
 local function expand_pattern(root, pattern)
   if not pattern or pattern == "" then return {} end
   local absolute = pattern:sub(1, 1) == "/" and pattern or join(root, pattern)
-  return shell_lines("ls -d " .. absolute .. " 2>/dev/null")
+  -- Quote the directory, leave the glob bare. Quoting the whole string stops the
+  -- shell expanding `*.lua`; leaving the directory bare breaks on any workspace
+  -- path containing a space. Neither mistake is visible until someone's checkout
+  -- lives in a directory with a space in it.
+  local directory, glob = absolute:match("^(.*)/([^/]*)$")
+  if not directory then
+    return shell_lines(string.format("ls -d %q 2>/dev/null", absolute))
+  end
+  return shell_lines(string.format("ls -d %q/%s 2>/dev/null", directory, glob))
 end
 
 --- Names of baseline entries, one directory per line. `#` starts a comment.
@@ -630,10 +640,15 @@ local function compose(options)
 end
 
 local function reload(options)
-  local command = string.format(
-    "printf '%s' | canvasctl",
-    string.format('{"schema_version":1,"request_id":"tend","command":{"command":"reload_module","surface_id":"%s"}}', options.surface)
-  )
+  -- Build the request with the JSON encoder rather than string.format: a surface
+  -- id containing a quote or a percent sign used to produce invalid JSON or a
+  -- broken format string.
+  local payload = json({
+    schema_version = 1,
+    request_id = "tend",
+    command = { command = "reload_module", surface_id = options.surface },
+  })
+  local command = string.format("printf '%%s' %s | canvasctl", string.format("%q", payload))
   local ok = os.execute(command)
   if ok ~= 0 and ok ~= true then
     io.stderr:write("tend: canvasctl reload failed for surface " .. options.surface .. "\n")
@@ -651,6 +666,7 @@ local function doctor(options)
   end
 
   report(exists(options.sdk), "SDK at " .. options.sdk)
+  print("ok      lua " .. tostring(_VERSION))
   for name, path in pairs(MODULES) do
     report(exists(join(options.sdk, path)), name .. " -> " .. path)
   end
@@ -676,6 +692,12 @@ local function doctor(options)
     print("ok      layout " .. layout_command)
   else
     print("warn    layout preview (no --layout or SOIL_LAYOUT)")
+  end
+  local canvasctl = shell_lines("command -v canvasctl 2>/dev/null")
+  if #canvasctl > 0 then
+    print("ok      canvasctl " .. canvasctl[1])
+  else
+    print("warn    canvasctl not on PATH (reload will fail)")
   end
   return failures == 0
 end

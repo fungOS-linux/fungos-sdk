@@ -416,7 +416,7 @@ function T.error_matches(fn, needle, message)
   end
 end
 
-for _, suite_name in ipairs({ "test_tend", "test_validate", "test_theme", "test_scene" }) do
+for _, suite_name in ipairs({ "test_tend", "test_validate", "test_theme", "test_scene", "test_cli" }) do
   local path = suite_dir .. "/tests/" .. suite_name .. ".lua"
   local factory = assert(loadfile(path), "cannot load " .. path)()
   local suite = factory(T, suite_dir)
