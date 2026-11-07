@@ -59,6 +59,37 @@ Every Spore with a `[ui]` entry must ship `ui/API.md`. See
 The Lua API is part of the package ABI. If another Spore, rice, or dotfile may
 depend on it, document it.
 
+### Documented actions
+
+`## Actions` is machine-checked. Under that heading, list the action ids the UI
+can emit in a fenced `text` block, one per line:
+
+```text
+notes.save
+mail.archive
+```
+
+The prose, tables and other code fences in the section are for humans; only the
+`text` block is read. `tend api-check` scans the Spore's view for a literal
+first argument to `action.intent(...)` (also its `action.call` alias and
+`ui.action_intent`) and fails when the view emits an id that block does not
+list.
+
+That scan is a **static approximation**, and it is worth being blunt about the
+limits: an id assembled at runtime (`action.intent("mail." .. verb)`) is
+invisible to it, a call spelled out inside a long string is a false positive,
+and a view that emits nothing is indistinguishable from one whose emits the
+scan could not read. It is a lint for the common mistake — a wired action
+nobody documented — not a substitute for running the view.
+
+Two deliberate asymmetries:
+
+- Documented ids the view never emits are only a **warning**. A Spore may
+document an action it wires conditionally.
+- A file with no `## Actions` `text` block is **not checked at all**. Nearly
+every API.md written before this convention has a table or `None` there, and
+turning "absent" into "no actions documented" would fail all of them.
+
 ## Quick start
 
 Once the SDK is installed:
@@ -74,6 +105,35 @@ into a module, runs a fake-host preflight, and only then writes/reloads Canvas.
 The preflight catches sparse child arrays, duplicate ids, invalid kinds, empty or
 non-printable scene text, non-finite geometry, and malformed scene calls.
 
+## Platform
+
+`tend` is **POSIX-only**. It is a Lua script, but it shells out:
+
+- `ls -d` expands workspace `members`/`components` globs (`tools/tend.lua`).
+- `find -name spore.toml` finds the manifests for `tend api-check`.
+- `command -v` backs the `doctor` probe for `canvasctl`.
+
+The `bin/tend` and `bin/check-spores` wrappers are `sh` scripts, and the suite's
+end-to-end cases use `sh` and `mkdir -p` too.
+
+There is no Windows path, and this is not a case of "probably works": on
+Windows those commands do not exist, `io.popen` returns no output, and `tend`
+reports an empty workspace or a clean sweep instead of an error. Do not rely on
+it there.
+
+Making it cross-platform is a real change, not a portability tweak, because Lua
+has no directory-listing API:
+
+1. Replace the `ls -d` glob expansion and the `find` sweep with a directory walk
+   that does not shell out. That needs either per-platform commands
+   (`dir /b /s`), which keeps the same fragility in a second dialect; the `lfs`
+   module, which is a C dependency this SDK does not have; or a small native
+   helper binary, which adds a build step.
+2. Add a `bin/tend.cmd` wrapper alongside the `sh` ones.
+3. Make `doctor` probe for its own platform conventions instead of `command -v`.
+
+Until then the tool is honest about being a Unix development loop.
+
 ## Checks
 
 The development loop is what every Spore author depends on, so it is checked
@@ -83,7 +143,8 @@ like code rather than trusted like a script.
 lua tests/run.lua                 # the suite; plain Lua, no modules to install
 lua tests/run.lua validate        # one suite by name
 
-tend api-check --root spores      # every spore.toml must ship ui/API.md
+tend api-check --root spores      # every spore.toml must ship ui/API.md,
+                                  # and document every action its view emits
 tend <view> --snapshot <snap>     # per-view: preflight + ui/API.md gate
 ```
 
@@ -220,6 +281,8 @@ Bound rather than merely declared:
 - `tend`'s pure half lives in `lua/fungos/tend.lua` and has a test suite
   (`tests/`), so the preflight is verified instead of assumed.
 - `ui/API.md` is a gate, not a convention: CI fails a Spore that skips it.
+- The action ids in that file are checked against the view statically, so an
+  action the view emits but the docs never mention fails `tend api-check`.
 - CI runs on every push and pull request.
 
 Not yet implemented:

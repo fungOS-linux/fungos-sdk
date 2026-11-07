@@ -26,6 +26,8 @@ is an error, not a warning.
 1. **Entrypoint** — the Lua module path and exported functions.
 2. **Snapshot** — fields the view reads, with types and nullability.
 3. **Actions** — every action id the UI can emit, its payload, and its result.
+   The machine-checked list is a fenced `text` block directly under the
+   heading, one action id per line (see [The Actions block](#the-actions-block)).
 4. **Slots** — named extension points and their expected replacement type.
 5. **Components** — named components this Spore exports, if any.
 6. **Theme/config** — supported profile keys and app-specific overrides.
@@ -33,6 +35,35 @@ is an error, not a warning.
 8. **Authority** — grants the UI view does not have, and where logic lives.
 
 If a section does not apply, say `None` and explain why.
+
+### The Actions block
+
+`## Actions` is the one section with machine-readable content. Action ids go in
+a fenced `text` block, one per line:
+
+```text
+mail.reply
+mail.archive
+notes.save
+```
+
+`tend api-check` reads exactly that block and compares it with the ids the
+Spore's view emits — the literal first argument of `action.intent(...)`, its
+`action.call` alias, or `ui.action_intent(...)` in the file named by
+`[ui] entry` in `spore.toml`.
+
+- An emitted id that is not in the block **fails** the check.
+- A documented id the view never emits is a **warning**. A Spore may document
+  an action it only wires conditionally.
+- A file with no `## Actions` `text` block is **not checked**. That is how the
+  API.md files older than this convention keep passing; adding the block is
+  what opts a Spore in.
+
+The scan is deliberately static and approximate. It sees literal arguments
+only, so `action.intent("mail." .. verb)` is invisible to it, and it does not
+execute the view. It is a lint for "the view emits an action nobody documented",
+not proof that the documented list is complete. Tables and prose in the section
+remain for humans and are not parsed.
 
 ## Example
 
@@ -83,6 +114,15 @@ Thread = {
 | `mail.unread` | `{ thread_id: string }` | row action |
 | `mail.archive` | `{ thread_id: string }` | detail action bar |
 | `mail.tag` | `{ thread_id: string, tag: string }` | tag control |
+
+The machine-checked ids:
+
+```text
+mail.read
+mail.unread
+mail.archive
+mail.tag
+```
 
 The UI only emits intents. The Unibus action router stamps the caller and checks
 the manifest grants.
