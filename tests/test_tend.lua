@@ -171,6 +171,166 @@ return function(T, root)
         T.equal(#tend.missing_sections("# Entrypoint\n## Snapshot"), 7, "only the h2 counts")
       end },
 
+      -- documented_actions -------------------------------------------------
+      { name = "documented_actions reads the text block under Actions", fn = function()
+        local ids = tend.documented_actions(table.concat({
+          "## Actions", "", "```text", "notes.save", "mail.archive", "```",
+        }, "\n"))
+        T.equal(#ids, 2, "id count")
+        T.equal(ids[1], "notes.save", "first")
+        T.equal(ids[2], "mail.archive", "second")
+      end },
+
+      { name = "documented_actions ignores fenced blocks in other sections", fn = function()
+        -- The Snapshot and Theme sections are full of code; only the Actions
+        -- block is the machine-checked list, or every example snippet becomes
+        -- an action id.
+        local ids = tend.documented_actions(table.concat({
+          "## Snapshot", "```text", "snapshot.field", "```",
+          "## Actions", "```text", "notes.save", "```",
+          "## Theme/config", "```text", "theme.key", "```",
+        }, "\n"))
+        T.equal(#ids, 1, "id count")
+        T.equal(ids[1], "notes.save", "only the Actions block")
+      end },
+
+      { name = "documented_actions ignores a non-text fence inside Actions", fn = function()
+        local ids = tend.documented_actions(table.concat({
+          "## Actions",
+          "```lua", "action.intent(\"notes.save\")", "```",
+          "```text", "notes.archive", "```",
+        }, "\n"))
+        T.equal(#ids, 1, "id count")
+        T.equal(ids[1], "notes.archive", "only the text fence counts")
+      end },
+
+      { name = "documented_actions deduplicates and keeps file order", fn = function()
+        local ids = tend.documented_actions(table.concat({
+          "## Actions", "```text", "b.second", "a.first", "b.second", "", "```",
+        }, "\n"))
+        T.equal(#ids, 2, "id count")
+        T.equal(ids[1], "b.second", "first seen first")
+        T.equal(ids[2], "a.first", "file order, not sorted")
+      end },
+
+      { name = "documented_actions stops at the next heading", fn = function()
+        local ids = tend.documented_actions(table.concat({
+          "## Actions", "```text", "notes.save", "```",
+          "## Slots", "```text", "toolbar.end", "```",
+        }, "\n"))
+        T.equal(#ids, 1, "id count")
+        T.equal(ids[1], "notes.save", "slot names are not actions")
+      end },
+
+      { name = "documented_actions is empty without an Actions section", fn = function()
+        -- Most API.md files predate the convention. "Not documented this way"
+        -- must mean "nothing to check", never "this spore documents no actions".
+        local ids = tend.documented_actions("## Snapshot\n```text\nsnapshot.field\n```\n")
+        T.equal(#ids, 0, "id count")
+      end },
+
+      { name = "documented_actions does not treat a heading inside a fence as one", fn = function()
+        -- A verbatim sample can contain markdown. Ending the section there
+        -- would silently truncate the documented actions.
+        local ids = tend.documented_actions(table.concat({
+          "## Actions", "```text", "## not a heading", "notes.save", "```",
+        }, "\n"))
+        T.equal(#ids, 2, "id count")
+        T.equal(ids[2], "notes.save", "id after the fake heading")
+      end },
+
+      { name = "documented_actions accepts a longer Actions heading", fn = function()
+        local ids = tend.documented_actions("## Actions emitted\n```text\nnotes.save\n```")
+        T.equal(#ids, 1, "id count")
+        T.equal(ids[1], "notes.save", "id")
+      end },
+
+      -- emitted_actions ----------------------------------------------------
+      { name = "emitted_actions finds literal action.intent ids", fn = function()
+        local ids = tend.emitted_actions(table.concat({
+          'local action = require("fungos.action")',
+          'action.intent("notes.save", { path = "a.md" })',
+          'action.intent( "mail.archive" )',
+        }, "\n"))
+        T.equal(#ids, 2, "id count")
+        T.equal(ids[1], "notes.save", "first")
+        T.equal(ids[2], "mail.archive", "second")
+      end },
+
+      { name = "emitted_actions finds the alias and the ui helper", fn = function()
+        local ids = tend.emitted_actions(table.concat({
+          'action.call("notes.save")',
+          'ui.action_intent("mail.archive")',
+        }, "\n"))
+        T.equal(#ids, 2, "id count")
+        T.equal(ids[1], "notes.save", "alias")
+        T.equal(ids[2], "mail.archive", "ui helper")
+      end },
+
+      { name = "emitted_actions ignores a commented-out intent", fn = function()
+        local ids = tend.emitted_actions(table.concat({
+          '-- action.intent("notes.delete")',
+          'action.intent("notes.save")',
+        }, "\n"))
+        T.equal(#ids, 1, "id count")
+        T.equal(ids[1], "notes.save", "only the live intent")
+      end },
+
+      { name = "emitted_actions ignores a call with no literal id", fn = function()
+        -- The scan is static: an id it cannot read is not an id it can claim.
+        local ids = tend.emitted_actions('action.intent(action_id, { id = 1 })')
+        T.equal(#ids, 0, "id count")
+      end },
+
+      { name = "emitted_actions deduplicates in source order", fn = function()
+        -- `z` before `a`, so a scan that sorts instead of keeping source order
+        -- fails here rather than looking lucky.
+        local ids = tend.emitted_actions(table.concat({
+          'ui.action_intent("z.first")',
+          'action.intent("a.second")',
+          'action.intent("z.first")',
+        }, "\n"))
+        T.equal(#ids, 2, "id count")
+        T.equal(ids[1], "z.first", "first")
+        T.equal(ids[2], "a.second", "second")
+      end },
+
+      -- action_gaps --------------------------------------------------------
+      { name = "action_gaps separates undocumented from unused", fn = function()
+        local gaps = tend.action_gaps({ "notes.save", "notes.delete" }, { "notes.save", "mail.send" })
+        T.equal(#gaps.undocumented, 1, "undocumented count")
+        T.equal(gaps.undocumented[1], "mail.send", "emitted but undocumented")
+        T.equal(#gaps.unused, 1, "unused count")
+        T.equal(gaps.unused[1], "notes.delete", "documented but unused")
+      end },
+
+      { name = "action_gaps sorts both lists", fn = function()
+        local gaps = tend.action_gaps(
+          { "z.late", "m.mid", "a.early" },
+          { "y.emitted", "n.mid", "b.emitted" })
+        T.equal(gaps.undocumented[1], "b.emitted", "undocumented first")
+        T.equal(gaps.undocumented[2], "n.mid", "undocumented second")
+        T.equal(gaps.unused[1], "a.early", "unused first")
+        T.equal(gaps.unused[2], "m.mid", "unused second")
+      end },
+
+      -- ui_entry -----------------------------------------------------------
+      { name = "ui_entry reads the entry under [ui]", fn = function()
+        local toml = table.concat({
+          "[module]", 'path = "module.wasm"', "", "[ui]", 'entry = "ui/hello.lua"',
+        }, "\n")
+        T.equal(tend.ui_entry(toml), "ui/hello.lua", "entry")
+      end },
+
+      { name = "ui_entry ignores an entry outside [ui]", fn = function()
+        -- [module].entry is the wasm path. Confusing it with the view would
+        -- scan a binary as Lua and report nothing.
+        local toml = table.concat({
+          "[module]", 'entry = "module.wasm"', "", "[grants]", 'entry = "grant"',
+        }, "\n")
+        T.equal(tend.ui_entry(toml), nil, "no ui entry")
+      end },
+
       -- the contract itself ----------------------------------------------
       { name = "api_sections is the documented eight in order", fn = function()
         T.equal(#tend.api_sections, 8, "section count")

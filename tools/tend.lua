@@ -128,6 +128,30 @@ local function read_baseline(path)
   return tendlib.baseline_entries(read(path))
 end
 
+--- Documented action ids that the Spore's view never emits.
+---
+--- Static and approximate by design; see tendlib.emitted_actions. The reverse
+--- direction is printed as a warning and does not fail, because a Spore may
+--- document an action it only wires conditionally.
+---
+--- Returns an empty list when there is nothing to check: no `## Actions` text
+--- block, no `[ui] entry` in the manifest, or no view at that path. Guessing
+--- there would turn an absent convention into a false failure.
+local function undocumented_actions(dir, api_text)
+  local documented = tendlib.documented_actions(api_text)
+  if #documented == 0 then return {} end
+  local entry = tendlib.ui_entry(read(join(dir, "spore.toml")))
+  if not entry then return {} end
+  local view = join(dir, entry)
+  if not exists(view) then return {} end
+  local gaps = tendlib.action_gaps(documented, tendlib.emitted_actions(read(view)))
+  if #gaps.unused > 0 then
+    io.stderr:write("WARN " .. dir .. "\n     documented but never emitted: "
+      .. table.concat(gaps.unused, ", ") .. "\n")
+  end
+  return gaps.undocumented
+end
+
 --- Repo-wide sweep: every Spore with a spore.toml must ship ui/API.md.
 ---
 --- The baseline makes this bind today instead of after a ten-file backfill:
@@ -150,10 +174,17 @@ local function api_check(options)
       if not exists(api) then
         problems = "missing ui/API.md"
       else
-        local missing = tendlib.missing_sections(read(api))
+        local text = read(api)
+        local gaps = {}
+        local missing = tendlib.missing_sections(text)
         if #missing > 0 then
-          problems = "missing sections: " .. table.concat(missing, ", ")
+          gaps[#gaps + 1] = "missing sections: " .. table.concat(missing, ", ")
         end
+        local undocumented = undocumented_actions(dir, text)
+        if #undocumented > 0 then
+          gaps[#gaps + 1] = "undocumented actions: " .. table.concat(undocumented, ", ")
+        end
+        if #gaps > 0 then problems = table.concat(gaps, "; ") end
       end
       if not problems then
         -- Documented: nothing to report, and a matching baseline line is now

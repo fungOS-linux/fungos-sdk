@@ -184,6 +184,140 @@ function tend.missing_sections(text)
   return missing
 end
 
+--- A `## Actions` heading. Matched case-insensitively, and a longer title such
+--- as `## Actions emitted` still counts; `## Interactions` does not.
+local function is_actions_heading(heading)
+  local name = heading:lower()
+  return name == "actions" or name:match("^actions%s") ~= nil
+end
+
+--- Action ids documented under a `## Actions` heading.
+---
+--- The convention: `## Actions` holds a fenced ```text block listing action ids,
+--- one per line (see docs/lua-api-contract.md). Only that section's ```text
+--- blocks count. The table and prose beside them are for humans, and a ```lua
+--- example in another section is not a list of ids.
+---
+--- Blank lines are skipped, duplicates dropped, file order kept. A file with no
+--- `## Actions` section returns an empty list: most API.md files predate this
+--- convention, so "not documented this way" has to mean "nothing to check"
+--- rather than "this Spore has no actions".
+function tend.documented_actions(text)
+  local ids, seen = {}, {}
+  local in_actions = false
+  local fence = nil
+
+  for raw in (text or ""):gmatch("([^\n]*)\n?") do
+    local line = raw:gsub("\r$", "")
+    -- An opening fence carries an info string; a closing fence is bare. Both
+    -- match here, and the state decides which one this is.
+    local fence_info = line:match("^%s*```%s*(%S*)%s*$")
+    if fence then
+      if fence_info == "" then
+        fence = nil
+      elseif in_actions and fence == "text" then
+        local id = line:gsub("^%s+", ""):gsub("%s+$", "")
+        if id ~= "" and not seen[id] then
+          seen[id] = true
+          ids[#ids + 1] = id
+        end
+      end
+    elseif fence_info ~= nil then
+      fence = fence_info:lower()
+    else
+      -- A `##` line inside a fence is text, not a heading: the fence branch
+      -- above consumes it, and this branch only runs outside one.
+      local heading = line:match("^##%s+(.-)%s*$")
+      if heading then in_actions = is_actions_heading(heading) end
+    end
+  end
+  return ids
+end
+
+--- Call forms that emit an action id.
+---
+--- `action.call` is the documented alias of `action.intent`; `ui.action_intent`
+--- is accepted because views have used both spellings.
+local EMIT_CALLS = { "action%.intent", "action%.call", "ui%.action_intent" }
+
+--- Action ids a view source appears to emit.
+---
+--- Deliberately static and approximate. It matches only a literal first
+--- argument of a known emit call: an id assembled at runtime
+--- (`action.intent("mail." .. verb)`) is invisible to it, and a call spelled the
+--- same way inside a long string would be a false positive. Comments are
+--- stripped first, so a commented-out intent does not count. This is enough to
+--- catch the mistake it exists for — the view emits an action nobody documented
+--- — and it is not a substitute for running the view.
+function tend.emitted_actions(source)
+  local text = tend.strip_comments(source or "")
+  local found = {}
+  for _, call in ipairs(EMIT_CALLS) do
+    local pattern = call .. "%s*%(%s*([\"'])([^\"'\n]*)"
+    local at = 1
+    while true do
+      local start, _, _, id = text:find(pattern, at)
+      if not start then break end
+      if id ~= "" then found[#found + 1] = { at = start, id = id } end
+      at = start + 1
+    end
+  end
+  -- One pass per call form loses the interleaving, so order by match position
+  -- to keep "first seen" meaning first seen.
+  table.sort(found, function(a, b) return a.at < b.at end)
+  local ids, seen = {}, {}
+  for _, item in ipairs(found) do
+    if not seen[item.id] then
+      seen[item.id] = true
+      ids[#ids + 1] = item.id
+    end
+  end
+  return ids
+end
+
+--- Compare documented action ids with the ones a view emits.
+---
+--- `undocumented` is a failure: the view emits an action the Spore API does not
+--- describe, so no consumer can know it exists. `unused` is only a warning: a
+--- Spore may document an action it wires conditionally. Both lists are sorted so
+--- the same input prints the same order.
+function tend.action_gaps(documented, emitted)
+  local documented_set, emitted_set = {}, {}
+  for _, id in ipairs(documented or {}) do documented_set[id] = true end
+  for _, id in ipairs(emitted or {}) do emitted_set[id] = true end
+  local undocumented, unused = {}, {}
+  for id in pairs(emitted_set) do
+    if not documented_set[id] then undocumented[#undocumented + 1] = id end
+  end
+  for id in pairs(documented_set) do
+    if not emitted_set[id] then unused[#unused + 1] = id end
+  end
+  table.sort(undocumented)
+  table.sort(unused)
+  return { undocumented = undocumented, unused = unused }
+end
+
+--- The `[ui] entry` path from a spore.toml body, or nil.
+---
+--- This is not a TOML parser. It reads the one string `tend api-check` needs,
+--- and only from the `[ui]` table, so an `entry` under `[module]` or at the top
+--- level is not mistaken for the view.
+function tend.ui_entry(text)
+  local section
+  for raw in (text or ""):gmatch("([^\n]*)\n?") do
+    local line = raw:gsub("\r$", "")
+    local heading = line:match("^%s*%[([^%]]+)%]%s*$")
+    if heading then
+      section = heading:gsub("^%s+", ""):gsub("%s+$", "")
+    elseif section == "ui" then
+      local entry = line:match('^%s*entry%s*=%s*"([^"]+)"')
+        or line:match("^%s*entry%s*=%s*'([^']+)'")
+      if entry then return entry end
+    end
+  end
+  return nil
+end
+
 --- Parse a baseline file body into a set of tolerated paths.
 ---
 --- Blank lines and `#` comments are ignored. Entries are trimmed but otherwise

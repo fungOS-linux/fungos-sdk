@@ -47,6 +47,57 @@ return function(T, root)
     return ok == true or ok == 0
   end
 
+  --- A complete ui/API.md. `actions` is the body under `## Actions`, so a case
+  --- can leave the section out entirely ("None.") or give it a text block.
+  local function api_doc(actions)
+    return table.concat({
+      "# Test spore UI API",
+      "## Entrypoint", "`ui/view.lua` exports `M.render(snapshot)`.",
+      "## Snapshot", "```lua\n{ title: string }\n```",
+      "## Actions", actions,
+      "## Slots", "None.",
+      "## Components", "None.",
+      "## Theme/config", "None.",
+      "## Stable ids", "`test-root`.",
+      "## Authority", "None.",
+      "",
+    }, "\n")
+  end
+
+  local function spore(dir, actions)
+    write(dir .. "/spore.toml", table.concat({
+      "schema = 1", "", "[spore]", 'id = "user.test"', "",
+      "[module]", 'path = "module.wasm"', "",
+      "[ui]", 'entry = "ui/view.lua"', "",
+    }, "\n"))
+    os.execute("mkdir -p " .. string.format("%q", dir .. "/ui"))
+    write(dir .. "/ui/API.md", api_doc(actions))
+    write(dir .. "/ui/view.lua", table.concat({
+      'local ui = require("fungos.ui")',
+      'local action = require("fungos.action")',
+      'local M = {}',
+      'function M.render(snapshot)',
+      '  return ui.action_button("test-save", "Save", {',
+      '    action = action.intent("notes.save", { path = "a.md" }),',
+      '  })',
+      'end',
+      'return M',
+      '',
+    }, "\n"))
+  end
+
+  --- Run `tend api-check --root dir`, returning ok, exit code and combined output.
+  local function api_check(dir)
+    local out_path = os.tmpname() .. ".out"
+    local ok, _, code = os.execute(string.format(
+      "cd %q && %s %q api-check --root %q > %q 2>&1",
+      absolute_root(), interpreter(), absolute_root() .. "/tools/tend.lua",
+      dir, out_path))
+    local output = read(out_path)
+    os.remove(out_path)
+    return ok == true or ok == 0, code, output
+  end
+
   return {
     name = "cli",
     cases = {
@@ -100,6 +151,38 @@ return function(T, root)
         T.equal(code, 2, "exit code")
         T.contains(output, "tree.children[2] duplicate node id dup", "duplicate reported")
         T.contains(output, "tree.children[3].kind is invalid: bogus", "invalid kind reported")
+      end },
+
+      { name = "api-check fails on an action the view emits but nobody documented", fn = function()
+        -- The view's save is wired; the docs never mention it, so no other
+        -- Spore, rice or host projection can know the action exists.
+        local dir = temp_dir("spore")
+        spore(dir, "```text\nnotes.delete\n```\n")
+        local ok, code, output = api_check(dir)
+        os.execute("rm -rf " .. string.format("%q", dir))
+        T.truthy(not ok, "api-check should fail")
+        T.equal(code, 1, "exit code")
+        T.contains(output, "undocumented actions: notes.save", "undocumented action")
+        T.contains(output, "documented but never emitted: notes.delete", "unused warning")
+      end },
+
+      { name = "api-check passes when every emitted action is documented", fn = function()
+        local dir = temp_dir("spore")
+        spore(dir, "```text\nnotes.save\n```\n")
+        local ok, _, output = api_check(dir)
+        os.execute("rm -rf " .. string.format("%q", dir))
+        T.truthy(ok, "api-check should pass: " .. output)
+        T.contains(output, "api-check ok", "ok line")
+      end },
+
+      { name = "api-check leaves a spore without an Actions block alone", fn = function()
+        -- Most API.md files predate the convention. Treating "no Actions text
+        -- block" as "no actions documented" would fail every one of them.
+        local dir = temp_dir("spore")
+        spore(dir, "None. This UI emits no actions.")
+        local ok, _, output = api_check(dir)
+        os.execute("rm -rf " .. string.format("%q", dir))
+        T.truthy(ok, "api-check should pass: " .. output)
       end },
     },
   }
