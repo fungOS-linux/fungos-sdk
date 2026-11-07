@@ -55,6 +55,8 @@ local function parse(argv)
     config = os.getenv("FUNGOS_CONFIG") or ((os.getenv("HOME") or "") .. "/.config/fungos/ui.lua"),
     modules = os.getenv("FUNGOS_MODULES") or ((os.getenv("HOME") or "") .. "/Library/Application Support/Dock/canvas/modules"),
     components = {},
+    workspace = nil,
+    no_workspace = false,
   }
   local positional = {}
   local index = 1
@@ -68,6 +70,11 @@ local function parse(argv)
       options.preflight = false
     elseif arg == "--allow-undocumented" then
       options.check_api = false
+    elseif arg == "--no-workspace" then
+      options.no_workspace = true
+    elseif arg == "--workspace" then
+      index = index + 1
+      options.workspace = assert(argv[index], "--workspace requires a path")
     elseif arg == "--component" then
       index = index + 1
       options.components[#options.components + 1] = assert(argv[index], "--component requires a path")
@@ -154,6 +161,91 @@ local function check_api(options)
     return false
   end
   return true
+end
+
+local function shell_lines(command)
+  local pipe = io.popen(command)
+  if not pipe then return {} end
+  local out = {}
+  for raw in pipe:lines() do
+    local line = raw:match("^%s*(.-)%s*$")
+    if line ~= "" then out[#out + 1] = line end
+  end
+  pipe:close()
+  return out
+end
+
+local function expand_pattern(root, pattern)
+  if not pattern or pattern == "" then return {} end
+  local absolute = pattern:sub(1, 1) == "/" and pattern or join(root, pattern)
+  return shell_lines("ls -d " .. absolute .. " 2>/dev/null")
+end
+
+local function load_workspace(options)
+  if options.no_workspace then return nil end
+  local root = options.workspace
+  if not root then
+    if exists("tend.lua") then root = "." else return nil end
+  end
+  local config_path = join(root, "tend.lua")
+  local config = {}
+  if exists(config_path) then
+    local chunk, error_message = loadfile(config_path)
+    assert(chunk, "cannot load " .. config_path .. ": " .. tostring(error_message))
+    local ok, value = pcall(chunk)
+    assert(ok, "cannot evaluate " .. config_path .. ": " .. tostring(value))
+    if type(value) == "table" then config = value end
+  end
+  local members = {}
+  for _, pattern in ipairs(config.members or {}) do
+    for _, path in ipairs(expand_pattern(root, pattern)) do members[#members + 1] = path end
+  end
+  local components = {}
+  for _, pattern in ipairs(config.components or {}) do
+    for _, path in ipairs(expand_pattern(root, pattern)) do components[#components + 1] = path end
+  end
+  for _, member in ipairs(members) do
+    if exists(join(member, "spore.toml")) then
+      for _, candidate in ipairs({ "ui/components.lua", "components.lua", "ui/index.lua" }) do
+        local path = join(member, candidate)
+        if exists(path) then components[#components + 1] = path end
+      end
+    end
+  end
+  local seen, unique = {}, {}
+  for _, path in ipairs(components) do
+    if not seen[path] then seen[path] = true; unique[#unique + 1] = path end
+  end
+  return { root = root, config = config, members = members, components = unique }
+end
+
+local function apply_workspace(options)
+  local workspace = load_workspace(options)
+  if not workspace then return nil end
+  options.workspace_data = workspace
+  local seen = {}
+  for _, path in ipairs(options.components) do seen[path] = true end
+  for _, path in ipairs(workspace.components) do
+    if not seen[path] then seen[path] = true; options.components[#options.components + 1] = path end
+  end
+  if not options.out and workspace.config.modules then options.out = join(workspace.root, workspace.config.modules) end
+  return workspace
+end
+
+local function list_workspace(options)
+  local workspace = apply_workspace(options)
+  if not workspace then
+    print("tend: no workspace (create tend.lua with members/components)")
+    return
+  end
+  print("workspace " .. workspace.root)
+  for _, member in ipairs(workspace.members) do
+    local name = member:match("([^/]+)$") or member
+    print("  member    " .. name .. "  " .. member)
+  end
+  for _, component in ipairs(workspace.components) do
+    print("  component " .. component)
+  end
 end
 
 local MODULES = {
@@ -516,7 +608,7 @@ end
 
 local argv = arg or {}
 local command = nil
-if argv[1] == "check" or argv[1] == "doctor" or argv[1] == "preview" or argv[1] == "build" then
+if argv[1] == "check" or argv[1] == "doctor" or argv[1] == "preview" or argv[1] == "build" or argv[1] == "list" then
   command = table.remove(argv, 1)
 end
 
@@ -526,9 +618,13 @@ if command == "check" then
   options.reload = false
 elseif command == "build" then
   options.reload = false
+elseif command == "list" then
+  list_workspace(options)
+  os.exit(0)
 elseif command == "doctor" then
   options.doctor = true
 end
+apply_workspace(options)
 if options.doctor then
   os.exit(doctor(options) and 0 or 1)
 end

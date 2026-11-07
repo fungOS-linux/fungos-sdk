@@ -104,8 +104,18 @@ tend build examples/components/demo.lua examples/components/snapshot.lua \
 For dashboard interoperability, see
 [`docs/grafana-gap.md`](docs/grafana-gap.md).
 
-See [`docs/components.md`](docs/components.md) and
-[`docs/package-model.md`](docs/package-model.md).
+See [`docs/components.md`](docs/components.md),
+[`docs/package-model.md`](docs/package-model.md), and
+[`docs/workspaces.md`](docs/workspaces.md).
+
+Workspace discovery:
+
+```bash
+tend list
+tend build ui/app.lua ui/snapshot.lua --name app
+```
+
+`tend.lua` declares members, components, and the default output directory.
 
 ## User repos
 
