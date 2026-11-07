@@ -105,6 +105,30 @@ return function(T, root)
         compare_ids(actual, expected, "hit")
       end },
 
+      { name = "an unknown theme token fails preflight", fn = function()
+        -- Proves host_env installs the strict theme, not just that the theme
+        -- module is strict in isolation. This is the end-to-end half.
+        local view = os.tmpname() .. ".probe.lua"
+        local file = assert(io.open(view, "w"))
+        file:write(([[
+local ui = require("fungos.ui")
+local M = {}
+function M.render(snapshot)
+  return ui.text("probe", tostring(module.theme.nonexistent_token), { size = 12 })
+end
+return M
+]]):gsub("^\n", ""))
+        file:close()
+        local command = string.format(
+          "cd %q && %s tools/tend.lua check %q --snapshot examples/inbox_snapshot.lua "
+            .. "--allow-undocumented >/dev/null 2>&1",
+          root, interpreter(), view)
+        local ok = os.execute(command)
+        os.remove(view)
+        T.truthy(not (ok == true or ok == 0),
+          "an unknown theme token should fail preflight")
+      end },
+
       { name = "capture is byte-identical across runs", fn = function()
         -- Determinism is the property the whole fixture rests on. It broke
         -- before --now existed: every run embedded the wall clock.

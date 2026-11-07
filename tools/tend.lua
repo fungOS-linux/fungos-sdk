@@ -27,6 +27,7 @@ local ROOT = script_dir() .. "/.."
 -- The pure half of the tool lives in lua/fungos/tend.lua so tests/run.lua can
 -- drive it without spawning a process or touching the filesystem.
 local tendlib = dofile(ROOT .. "/lua/fungos/tend.lua")
+local themelib = dofile(ROOT .. "/lua/fungos/theme.lua")
 
 local function read(path)
   local file = assert(io.open(path, "rb"), "cannot read " .. path)
@@ -342,10 +343,21 @@ local function host_env(options)
   local now = tonumber(options.now) and math.floor(tonumber(options.now) / 1000) or os.time()
   local civil = os.date("*t", now)
   local validate = dofile(join(options.sdk, "lua/fungos/validate.lua"))
+
+  -- A real palette when one is supplied (--theme <file.lua> returning a token
+  -- table), otherwise the documented stand-ins. Either way it is wrapped so an
+  -- unknown token is an error rather than a nil that renders blank.
+  local tokens = themelib.tokens
+  if options.theme then
+    local supplied = assert(loadfile(options.theme), "cannot load theme " .. options.theme)()
+    assert(type(supplied) == "table", "theme " .. options.theme .. " must return a table")
+    tokens = supplied
+  end
+
   local env = {
     module = {
       viewport = { width = width, height = height },
-      theme = { body = 16 },
+      theme = themelib.strict(tokens),
       now = {
         epoch_ms = now * 1000,
         year = civil.year, month = civil.month, day = civil.day,

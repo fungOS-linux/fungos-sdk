@@ -106,7 +106,11 @@ end
 
 --- Resolve the host theme plus local overrides.
 function ui.theme(base)
-  local out = copy(base or {})
+  -- Default to the host's palette. Before this, `ui.theme()` with no base
+  -- returned only the profile theme, so every `theme.<token>` fell through to
+  -- the `or 16` literals in this file and a view could not tell a real token
+  -- from a missing one.
+  local out = copy(base or (module and module.theme) or {})
   merge(out, ui.profile.theme or {})
   if ui.profile.radius then out.radius = ui.profile.radius end
   return out
