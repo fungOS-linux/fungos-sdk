@@ -28,6 +28,23 @@ local function layer(kind, opts)
   }
 end
 
+--- Optional palette overrides. Unspecified roles fall back to the host theme.
+function live.theme(opts)
+  opts = opts or {}
+  return {
+    background = opts.background,
+    surface = opts.surface,
+    text = opts.text,
+    muted = opts.muted,
+    primary = opts.primary,
+    success = opts.success,
+    warning = opts.warning,
+    danger = opts.danger,
+    info = opts.info,
+    body = tonumber(opts.body),
+  }
+end
+
 --- An optional automatic panel grid. Layer `rect` values are ignored when a
 -- grid is present.
 function live.grid(opts)
@@ -52,6 +69,7 @@ function live.scene(opts)
     fullscreen = opts.fullscreen == true,
     ui_scale = tonumber(opts.ui_scale) or 1,
     grid = opts.grid,
+    theme = opts.theme,
     layers = opts.layers or {},
   }
 end
@@ -78,11 +96,13 @@ function live.series(opts)
     visible = opts.visible,
     kind = opts.kind or "line",
     color = opts.color,
+    ink = opts.ink,
     color2 = opts.color2,
     width = opts.width,
     fill_opacity = opts.fill_opacity,
     smooth = opts.smooth == true,
     interpolate = opts.interpolate == true,
+    step = opts.step == true,
     source = opts.source,
     band_source = opts.band_source,
     open_source = opts.open_source,
@@ -147,6 +167,21 @@ function live.threshold(opts)
     color = opts.color,
     opacity = opts.opacity,
   }
+end
+
+--- A distribution histogram of one resident source.
+function live.histogram(opts)
+  opts = opts or {}
+  local out = layer("histogram", opts)
+  out.source = opts.source
+  out.bins = tonumber(opts.bins) or 24
+  out.min = opts.min
+  out.max = opts.max
+  out.color = opts.color
+  out.ink = opts.ink
+  out.opacity = opts.opacity
+  out.bar_radius = opts.bar_radius
+  return out
 end
 
 function live.graph(opts)

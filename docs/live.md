@@ -108,6 +108,28 @@ live.series {
   label = "Waiting", kind = "stacked_area",
   source = "connections.waiting", color = { 236, 72, 153 },
 }
+
+-- stacked bars: same accumulation, drawn as bars
+live.series { label = "4xx", kind = "stacked_bar", source = "errors.4xx" }
+live.series { label = "5xx", kind = "stacked_bar", source = "errors.5xx" }
+
+-- step-after line/area
+live.series {
+  label = "Requests", kind = "area", source = "throughput", step = true,
+}
+```
+
+
+Histograms are a separate layer kind:
+
+```lua
+live.histogram {
+  id = "cpu-distribution",
+  title = "CPU distribution",
+  source = "system.cpu",
+  bins = 18,
+  ink = "warning",
+}
 ```
 
 `stride` samples every Nth 5 Hz point. Use it for bars and candles so marks
@@ -139,6 +161,40 @@ They come from the native Rust source adapter, not from Lua. The
 `host-metrics` Spore uses these sources. CPU and memory refresh every sample;
 the process table refreshes every two seconds to avoid turning `/proc` walking
 into the hot loop.
+
+## Theme
+
+Charts use the host `Theme` by default for panel surfaces, text, axes, grids,
+tooltips and the fallback series palette. Series can name a semantic role
+instead of hard-coding RGB:
+
+```lua
+live.series { source = "system.cpu", ink = "warning" }
+live.series { source = "system.memory", ink = "primary" }
+```
+
+A spec may override the host palette, which is how a Canvas theme is carried
+into a native live window:
+
+```lua
+return live.scene {
+  theme = live.theme {
+    background = { 18, 10, 30 },
+    surface = { 42, 24, 58 },
+    text = { 244, 232, 255 },
+    muted = { 168, 150, 190 },
+    primary = { 255, 80, 180 },
+    success = { 80, 240, 160 },
+    warning = { 255, 200, 80 },
+    danger = { 255, 90, 110 },
+    info = { 80, 200, 255 },
+  },
+  layers = { ... },
+}
+```
+
+If `color` is omitted on a series, the host palette is used. Raw RGB remains
+available for a series that owns its identity, like the ChartGPU demo.
 
 ## Viewport, scaling and legend
 
