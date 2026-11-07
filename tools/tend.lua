@@ -24,6 +24,10 @@ end
 
 local ROOT = script_dir() .. "/.."
 
+-- The pure half of the tool lives in lua/fungos/tend.lua so tests/run.lua can
+-- drive it without spawning a process or touching the filesystem.
+local tendlib = dofile(ROOT .. "/lua/fungos/tend.lua")
+
 local function read(path)
   local file = assert(io.open(path, "rb"), "cannot read " .. path)
   local text = file:read("*a")
@@ -46,8 +50,8 @@ local function join(a, b)
   return a .. "/" .. b
 end
 
-local function parse(argv)
-  local options = {
+local function defaults()
+  return {
     name = "tend-preview",
     reload = true,
     check_api = true,
@@ -58,83 +62,20 @@ local function parse(argv)
     workspace = nil,
     no_workspace = false,
   }
-  local positional = {}
-  local index = 1
-  while index <= #argv do
-    local arg = argv[index]
-    if arg == "--doctor" then
-      options.doctor = true
-    elseif arg == "--no-reload" then
-      options.reload = false
-    elseif arg == "--no-preflight" then
-      options.preflight = false
-    elseif arg == "--allow-undocumented" then
-      options.check_api = false
-    elseif arg == "--no-workspace" then
-      options.no_workspace = true
-    elseif arg == "--workspace" then
-      index = index + 1
-      options.workspace = assert(argv[index], "--workspace requires a path")
-    elseif arg == "--component" then
-      index = index + 1
-      options.components[#options.components + 1] = assert(argv[index], "--component requires a path")
-    elseif arg:sub(1, 2) == "--" then
-      local key = arg:sub(3):gsub("-", "_")
-      index = index + 1
-      options[key] = argv[index]
-    else
-      positional[#positional + 1] = arg
-    end
-    index = index + 1
-  end
-  options.view = positional[1]
-  options.snapshot = positional[2] or options.snapshot
-  return options
 end
 
-local function strip_comments(source)
-  local out = {}
-  local index, length = 1, #source
-  local quote
-  while index <= length do
-    local char = source:sub(index, index)
-    if quote then
-      out[#out + 1] = char
-      if char == "\\" then
-        index = index + 1
-        out[#out + 1] = source:sub(index, index)
-      elseif char == quote then
-        quote = nil
-      end
-      index = index + 1
-    elseif char == '"' or char == "'" then
-      quote = char
-      out[#out + 1] = char
-      index = index + 1
-    elseif char == "-" and source:sub(index + 1, index + 1) == "-" then
-      while index <= length and source:sub(index, index) ~= "\n" do index = index + 1 end
-    else
-      out[#out + 1] = char
-      index = index + 1
-    end
-  end
-  local lines = {}
-  for raw in table.concat(out):gmatch("([^\n]*)\n?") do
-    local line = raw:gsub("^%s+", ""):gsub("%s+$", "")
-    if line ~= "" then lines[#lines + 1] = line end
-  end
-  return table.concat(lines, "\n")
+local function parse(argv)
+  return tendlib.parse(argv, defaults())
 end
+
+local strip_comments = tendlib.strip_comments
+
+-- (strip_comments lives in lua/fungos/tend.lua so it can be tested directly.)
 
 local function api_path(view)
   local ui_dir = dirname(view)
   return join(ui_dir, "API.md")
 end
-
-local API_SECTIONS = {
-  "entrypoint", "snapshot", "actions", "slots", "components",
-  "theme/config", "stable ids", "authority",
-}
 
 local function check_api(options)
   if not options.check_api then return true end
@@ -144,18 +85,7 @@ local function check_api(options)
     io.stderr:write("tend: every Spore UI must ship ui/API.md; see docs/lua-api-contract.md\n")
     return false
   end
-  local headings = {}
-  for heading in read(path):gmatch("## ([^\n]+)") do
-    headings[#headings + 1] = heading:lower()
-  end
-  local missing = {}
-  for _, section in ipairs(API_SECTIONS) do
-    local found = false
-    for _, heading in ipairs(headings) do
-      if heading:find(section, 1, true) then found = true break end
-    end
-    if not found then missing[#missing + 1] = section end
-  end
+  local missing = tendlib.missing_sections(read(path))
   if #missing > 0 then
     io.stderr:write("tend: " .. path .. " is missing: " .. table.concat(missing, ", ") .. "\n")
     return false
@@ -179,6 +109,80 @@ local function expand_pattern(root, pattern)
   if not pattern or pattern == "" then return {} end
   local absolute = pattern:sub(1, 1) == "/" and pattern or join(root, pattern)
   return shell_lines("ls -d " .. absolute .. " 2>/dev/null")
+end
+
+--- Names of baseline entries, one directory per line. `#` starts a comment.
+local function read_baseline(path)
+  if not path or not exists(path) then return {} end
+  return tendlib.baseline_entries(read(path))
+end
+
+--- Repo-wide sweep: every Spore with a spore.toml must ship ui/API.md.
+---
+--- The baseline makes this bind today instead of after a ten-file backfill:
+--- known-undocumented Spores are tolerated by path, so a *new* Spore without
+--- docs fails the build immediately. Documented Spores drop out of the failure
+--- list, and pruning the baseline is what keeps the ratchet turning.
+local function api_check(options)
+  local roots = options.roots or { "." }
+  local baseline = read_baseline(options.baseline)
+  local failures, baselined, tolerated = {}, 0, {}
+
+  for _, root in ipairs(roots) do
+    local manifests = shell_lines(
+      string.format("find %q -name spore.toml -type f 2>/dev/null", root))
+    table.sort(manifests)
+    for _, manifest in ipairs(manifests) do
+      local dir = dirname(manifest)
+      local api = join(dir, "ui/API.md")
+      local problems
+      if not exists(api) then
+        problems = "missing ui/API.md"
+      else
+        local missing = tendlib.missing_sections(read(api))
+        if #missing > 0 then
+          problems = "missing sections: " .. table.concat(missing, ", ")
+        end
+      end
+      if not problems then
+        -- Documented: nothing to report, and a matching baseline line is now
+        -- redundant.
+      elseif baseline[dir] then
+        baselined = baselined + 1
+        tolerated[dir] = true
+      else
+        failures[#failures + 1] = { dir = dir, problems = problems }
+      end
+    end
+  end
+
+  for _, failure in ipairs(failures) do
+    io.stderr:write("FAIL " .. failure.dir .. "\n     " .. failure.problems .. "\n")
+  end
+
+  local stale = {}
+  for dir in pairs(baseline) do
+    if not tolerated[dir] then stale[#stale + 1] = dir end
+  end
+  table.sort(stale)
+  if #stale > 0 then
+    io.stderr:write("tend: " .. #stale
+      .. " baseline entr(ies) no longer needed; prune tools/api-baseline.txt:\n")
+    for _, dir in ipairs(stale) do io.stderr:write("     " .. dir .. "\n") end
+  end
+
+  if #failures > 0 then
+    io.stderr:write(string.format(
+      "tend: %d undocumented Spore UI(s); %d tolerated by baseline\n",
+      #failures, baselined))
+    return false
+  end
+  if options.strict_baseline and #stale > 0 then
+    io.stderr:write("tend: --strict-baseline and the baseline is stale\n")
+    return false
+  end
+  print(string.format("tend: api-check ok (%d tolerated by baseline)", baselined))
+  return true
 end
 
 local function load_workspace(options)
@@ -608,12 +612,14 @@ end
 
 local argv = arg or {}
 local command = nil
-if argv[1] == "check" or argv[1] == "doctor" or argv[1] == "preview" or argv[1] == "build" or argv[1] == "list" then
+if argv[1] and tendlib.commands[argv[1]] then
   command = table.remove(argv, 1)
 end
 
 local options = parse(argv)
-if command == "check" then
+if command == "api-check" then
+  os.exit(api_check(options) and 0 or 1)
+elseif command == "check" then
   options.check = true
   options.reload = false
 elseif command == "build" then

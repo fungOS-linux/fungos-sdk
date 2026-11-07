@@ -379,4 +379,63 @@ local button = compose.apply(ui.component("fungos.ui/button", {
 ok(button.id == "shared-button", "shared button should resolve")
 ok(button.role == "button", "shared button should retain button role")
 
+-- ---- named suites ---------------------------------------------------------
+-- The assertions above predate per-case reporting: one failure aborts the run
+-- and only the message says what broke. Newer checks live in suite files with
+-- one case per behaviour, so a failure names the behaviour instead of the line.
+-- Both share the `passed` counter so the total stays honest.
+
+local suite_dir = (debug.getinfo(1, "S").source:sub(2):match("^(.*)[/\\][^/\\]+$") or ".") .. "/.."
+local suite_failures = 0
+
+local T = {}
+
+function T.truthy(value, message)
+  if not value then error(message or "expected truthy", 2) end
+end
+
+function T.equal(actual, expected, message)
+  if actual ~= expected then
+    error(string.format("%s: expected %s, got %s", message or "values differ",
+      tostring(expected), tostring(actual)), 2)
+  end
+end
+
+function T.contains(haystack, needle, message)
+  if type(haystack) ~= "string" or not haystack:find(needle, 1, true) then
+    error((message or "substring not found") .. ": " .. tostring(needle), 2)
+  end
+end
+
+function T.error_matches(fn, needle, message)
+  local succeeded, err = pcall(fn)
+  if succeeded then error((message or "expected an error") .. ": it succeeded", 2) end
+  if needle and not tostring(err):find(needle, 1, true) then
+    error(string.format("%s: wanted %q, got %s", message or "wrong error",
+      needle, tostring(err)), 2)
+  end
+end
+
+for _, suite_name in ipairs({ "test_tend", "test_validate" }) do
+  local path = suite_dir .. "/tests/" .. suite_name .. ".lua"
+  local factory = assert(loadfile(path), "cannot load " .. path)()
+  local suite = factory(T, suite_dir)
+  print(string.format("-- %s", suite.name))
+  for _, case in ipairs(suite.cases) do
+    local succeeded, err = pcall(case.fn)
+    if succeeded then
+      passed = passed + 1
+    else
+      suite_failures = suite_failures + 1
+      io.stderr:write(string.format("FAIL %s > %s\n  %s\n",
+        suite.name, case.name, tostring(err)))
+    end
+  end
+end
+
+if suite_failures > 0 then
+  io.stderr:write(string.format("%d suite case(s) failed\n", suite_failures))
+  os.exit(1)
+end
+
 print(string.format("sdk lua: %d assertions passed", passed))

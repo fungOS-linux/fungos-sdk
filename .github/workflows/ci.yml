@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+    # `master` is transitional while this repository moves to `main`.
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+
+      # The development loop is the thing every Spore author depends on, so it
+      # is the thing that must not silently rot. Plain Lua, no modules.
+      - name: Unit tests
+        run: lua5.4 tests/run.lua
+
+      # Compose a real view end to end: comment stripping, the module shim,
+      # preflight validation, and the per-view ui/API.md gate.
+      - name: Compose example views
+        run: |
+          set -eu
+          lua5.4 tools/tend.lua check examples/inbox.lua \
+            --snapshot examples/inbox_snapshot.lua
+          lua5.4 tools/tend.lua check examples/contacts/contacts.lua \
+            --snapshot examples/contacts/snapshot.lua
+          lua5.4 tools/tend.lua check examples/calendar/calendar.lua \
+            --snapshot examples/calendar/live.lua
+
+      - name: Spore Lua API docs
+        run: lua5.4 tools/tend.lua api-check --root examples
+
+      # `master` -> `main` is a rename, not a rewrite; refuse a stray branch.
+      - name: Branch name
+        if: github.ref_name == 'master' && github.event_name == 'push'
+        run: echo "::warning::master still exists; finish the rename to main"

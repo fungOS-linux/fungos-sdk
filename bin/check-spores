@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
 set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-exec lua "$here/tools/check-spores.lua" "$@"
+exec lua "$here/tools/tend.lua" api-check "$@"

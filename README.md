@@ -74,6 +74,36 @@ into a module, runs a fake-host preflight, and only then writes/reloads Canvas.
 The preflight catches sparse child arrays, duplicate ids, invalid kinds, empty or
 non-printable scene text, non-finite geometry, and malformed scene calls.
 
+## Checks
+
+The development loop is what every Spore author depends on, so it is checked
+like code rather than trusted like a script.
+
+```bash
+lua tests/run.lua                 # the suite; plain Lua, no modules to install
+lua tests/run.lua validate        # one suite by name
+
+tend api-check --root spores      # every spore.toml must ship ui/API.md
+tend <view> --snapshot <snap>     # per-view: preflight + ui/API.md gate
+```
+
+`tend api-check` is the repo-wide sweep. Because the Lua API is part of the
+package ABI, a Spore with a `spore.toml` and no `ui/API.md` is a build failure —
+but `spores/` has eight Spores that predate the rule, so the sweep takes a
+baseline:
+
+```bash
+tend api-check --root spores --baseline tools/api-baseline.txt
+```
+
+Known-undocumented Spores are tolerated **by path**, so a new Spore without docs
+fails immediately, and a Spore that gets documented drops out of the tolerated
+set. `--strict-baseline` fails while that file still lists a Spore that no longer
+needs it, which is what stops the ratchet slipping backwards.
+
+CI runs the suite, composes three real example views end to end, and runs the
+sweep (`.github/workflows/ci.yml`).
+
 ## GPU scene capture
 
 `ui.capture(width, height, theme, paint)` runs a view that uses `ui.surface` and
@@ -142,7 +172,14 @@ The first slice is deliberately narrow:
 - action intents
 - `tend` preview loop
 - Rust action/scene types
-- Spore Lua API documentation contract
+- Spore Lua API documentation contract, enforced by `tend api-check`
+
+Bound rather than merely declared:
+
+- `tend`'s pure half lives in `lua/fungos/tend.lua` and has a test suite
+  (`tests/`), so the preflight is verified instead of assumed.
+- `ui/API.md` is a gate, not a convention: CI fails a Spore that skips it.
+- CI runs on every push and pull request.
 
 Not yet implemented:
 
