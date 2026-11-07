@@ -45,13 +45,23 @@ return function(T, root)
     return os.getenv("LUA") or (arg and arg[-1]) or "lua"
   end
 
-  local function capture(destination)
+  local function capture(destination, extra)
     local command = string.format(
-      "cd %q && TZ=UTC %s tools/tend.lua --scene %q --now %d "
+      "cd %q && TZ=UTC %s tools/tend.lua --scene %q --now %d %s "
         .. "examples/inbox.lua examples/inbox_snapshot.lua >/dev/null 2>&1",
-      root, interpreter(), destination, NOW)
+      root, interpreter(), destination, NOW, extra or "")
     local ok = os.execute(command)
     return ok == true or ok == 0
+  end
+
+  --- A stand-in layout command: tend expects Lua returning a layout table.
+  local function layout_stub(body)
+    local path = os.tmpname() .. ".sh"
+    local file = assert(io.open(path, "w"))
+    file:write("#!/bin/sh\n" .. body .. "\n")
+    file:close()
+    os.execute("chmod +x " .. string.format("%q", path))
+    return path
   end
 
   local function cleanup(path)
@@ -103,6 +113,42 @@ return function(T, root)
         cleanup(path)
         local expected = lines(read(root .. "/tests/golden/inbox.hits.ids.txt"))
         compare_ids(actual, expected, "hit")
+      end },
+
+      { name = "capture records that preview layout was used", fn = function()
+        -- Preview geometry is tend's own approximation. The sidecar is how a
+        -- consumer knows not to trust it as Taffy output.
+        local path = os.tmpname() .. ".scene.json"
+        T.truthy(capture(path), "capture failed")
+        local sidecar = read(path .. ".layout.json")
+        cleanup(path)
+        os.remove(path .. ".layout.json")
+        T.contains(sidecar, '"layout":"preview"', "layout mode")
+      end },
+
+      { name = "a layout command is recorded as taffy, not preview", fn = function()
+        local stub = layout_stub(
+          "echo 'return { root = { x = 0, y = 0, width = 100, height = 100 }, nodes = {} }'")
+        local path = os.tmpname() .. ".scene.json"
+        local captured = capture(path, "--layout " .. string.format("%q", stub))
+        local sidecar = captured and read(path .. ".layout.json") or ""
+        cleanup(path)
+        os.remove(path .. ".layout.json")
+        os.remove(stub)
+        T.truthy(captured, "capture with a layout command failed")
+        T.contains(sidecar, '"layout":"taffy"', "layout mode")
+      end },
+
+      { name = "a broken layout command fails loudly", fn = function()
+        -- Silently falling back to preview here would mean a developer thinks
+        -- they validated real geometry when they did not.
+        local stub = layout_stub("exit 3")
+        local path = os.tmpname() .. ".scene.json"
+        local captured = capture(path, "--layout " .. string.format("%q", stub))
+        cleanup(path)
+        os.remove(path .. ".layout.json")
+        os.remove(stub)
+        T.truthy(not captured, "a failing layout command should fail the capture")
       end },
 
       { name = "an unknown theme token fails preflight", fn = function()

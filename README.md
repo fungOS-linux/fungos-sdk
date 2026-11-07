@@ -129,6 +129,22 @@ differences rather than on real regressions. The committed scene is the artifact
 a **host-side** test should consume: that half is what proves the imitation still
 matches the original, and it can only live in the host's repository.
 
+### Layout
+
+`tend` lays out with a real layout command when one is available and falls back
+to its own approximation otherwise. The fallback is useful, and it is **not**
+Taffy, so it is never silent:
+
+- `--layout <cmd>` (or `SOIL_LAYOUT`) runs the real layout command.
+- Every capture writes `<scene>.layout.json` recording `preview`, `taffy`,
+  `mixed` or `unused`, so a consumer never has to infer it from a green
+  preflight.
+- `tend check` warns on stderr when preview geometry was used, and `tend doctor`
+  reports it as a warning.
+- A layout command that exits nonzero, prints nothing, or returns something that
+  is not a layout table fails the capture. Silently falling back there would mean
+  a developer believes they validated geometry they never ran.
+
 ## GPU scene capture
 
 `ui.capture(width, height, theme, paint)` runs a view that uses `ui.surface` and

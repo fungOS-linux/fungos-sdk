@@ -333,7 +333,23 @@ local function json(value, array_hint)
   return "{" .. table.concat(out, ",") .. "}"
 end
 
+--- What the last host_env actually did for layout. `preview` is tend's own
+--- approximation; `taffy` came from a real layout command. Consumers of a
+--- captured scene deserve to know which, rather than trusting that a green
+--- preflight meant real geometry.
+local layout_state = { preview = false, taffy = false, source = nil }
+
+local function layout_mode()
+  if layout_state.taffy and not layout_state.preview then return "taffy" end
+  if layout_state.preview and not layout_state.taffy then return "preview" end
+  if layout_state.preview and layout_state.taffy then return "mixed" end
+  return "unused"
+end
+
 local function host_env(options)
+  layout_state.preview = false
+  layout_state.taffy = false
+  layout_state.source = nil
   local width = tonumber(options.width) or 1200
   local height = tonumber(options.height) or 900
   -- `--now` takes epoch milliseconds, matching module.now.epoch_ms. Without it a
@@ -369,21 +385,43 @@ local function host_env(options)
       layout = function(tree, available_width, available_height)
         validate.tree(tree)
         local w, h = available_width or width, available_height or height
-        local command = os.getenv("SOIL_LAYOUT")
+        -- --layout wins over the environment so a run can be pinned without
+        -- leaking state into the shell it was launched from.
+        local command = options.layout or os.getenv("SOIL_LAYOUT")
         if command and command ~= "" then
           local input = os.tmpname()
           local file = assert(io.open(input, "wb"), "cannot write layout input")
           file:write(json(tree))
           file:close()
-          local pipe = assert(io.popen(string.format("%s --input %q --width %s --height %s --lua", command, input, w, h), "r"))
+          local pipe, popen_error = io.popen(
+            string.format("%s --input %q --width %s --height %s --lua", command, input, w, h), "r")
+          if not pipe then
+            os.remove(input)
+            error("cannot run layout command " .. command .. ": " .. tostring(popen_error), 2)
+          end
           local output = pipe:read("*a")
           pipe:close()
           os.remove(input)
-          local laid = assert(load(output, "@soil-layout"))()
+          -- A layout command that dies leaves no output; say so instead of
+          -- surfacing a bare "unexpected symbol" from load().
+          if not output or output == "" then
+            error("layout command produced no output: " .. command, 2)
+          end
+          local chunk, load_error = load(output, "@soil-layout")
+          if not chunk then
+            error("layout command returned invalid Lua: " .. tostring(load_error), 2)
+          end
+          local ok, laid = pcall(chunk)
+          if not ok or type(laid) ~= "table" then
+            error("layout command did not return a layout table: " .. tostring(laid), 2)
+          end
+          layout_state.taffy = true
+          layout_state.source = command
           return laid
         end
         local nodes = {}
         flatten(tree, 0, 0, w, h, nodes)
+        layout_state.preview = true
         return { root = { x = 0, y = 0, width = w, height = h }, nodes = nodes }
       end,
       measure_text = function(text, style)
@@ -448,7 +486,14 @@ local function capture(source, name, options)
   file = assert(io.open(hits_path, "wb"), "cannot write " .. hits_path)
   file:write(json(hits or {}, true))
   file:close()
-  print(string.format("tend: wrote %s (%d nodes, %d hits)", path, #(present.nodes or {}), #(hits or {})))
+  -- Preview geometry is not Taffy geometry. Record which one produced this
+  -- scene so a consumer never has to infer it from a passing preflight.
+  local layout_path = path .. ".layout.json"
+  file = assert(io.open(layout_path, "wb"), "cannot write " .. layout_path)
+  file:write(json({ layout = layout_mode(), source = layout_state.source or "" }))
+  file:close()
+  print(string.format("tend: wrote %s (%d nodes, %d hits, layout %s)",
+    path, #(present.nodes or {}), #(hits or {}), layout_mode()))
 end
 
 local function preflight(source, name, options)
@@ -464,6 +509,9 @@ local function preflight(source, name, options)
   if not ok then
     io.stderr:write("tend: preflight failed: " .. tostring(runtime_error) .. "\n")
     os.exit(2)
+  end
+  if layout_state.preview and not layout_state.taffy then
+    io.stderr:write("tend: preview layout; pass --layout or set SOIL_LAYOUT for real Taffy geometry\n")
   end
   print("tend: preflight ok")
 end
@@ -622,6 +670,12 @@ local function doctor(options)
   end
   for _, path in ipairs(options.components or {}) do
     report(exists(path), "component " .. path)
+  end
+  local layout_command = options.layout or os.getenv("SOIL_LAYOUT")
+  if layout_command and layout_command ~= "" then
+    print("ok      layout " .. layout_command)
+  else
+    print("warn    layout preview (no --layout or SOIL_LAYOUT)")
   end
   return failures == 0
 end
