@@ -335,7 +335,11 @@ end
 local function host_env(options)
   local width = tonumber(options.width) or 1200
   local height = tonumber(options.height) or 900
-  local now = os.time()
+  -- `--now` takes epoch milliseconds, matching module.now.epoch_ms. Without it a
+  -- captured scene depends on the wall clock, so two runs of the same view
+  -- disagree and no golden fixture is possible. Civil time stays local, which
+  -- is what a Spore rendering a clock should see; tests pin TZ instead.
+  local now = tonumber(options.now) and math.floor(tonumber(options.now) / 1000) or os.time()
   local civil = os.date("*t", now)
   local validate = dofile(join(options.sdk, "lua/fungos/validate.lua"))
   local env = {

@@ -104,6 +104,31 @@ needs it, which is what stops the ratchet slipping backwards.
 CI runs the suite, composes three real example views end to end, and runs the
 sweep (`.github/workflows/ci.yml`).
 
+### Golden scenes
+
+`tend`'s fake host is a second implementation of the host contract, so the
+failure that matters here is drift: a node that quietly stops being emitted, a
+renamed id, a lost hit target. `tests/golden/inbox.scene.json` is a real capture
+of `examples/inbox.lua`, and the suite pins its node and hit-target ids, so that
+drift fails a test instead of blanking a panel.
+
+Capture is reproducible because `--now` fixes the injected clock:
+
+```bash
+TZ=UTC tend --scene /tmp/inbox.json --now 1794014400000 \
+  examples/inbox.lua examples/inbox_snapshot.lua
+```
+
+Without `--now` the scene embeds the wall clock and two runs of the same view
+disagree. Civil time stays local, because that is what a Spore rendering a clock
+should see; tests pin `TZ` instead of changing the behaviour.
+
+The comparison is structural — ids and counts, not pixels or geometry. Geometry
+is layout-engine dependent, and a byte comparison would break on interpreter
+differences rather than on real regressions. The committed scene is the artifact
+a **host-side** test should consume: that half is what proves the imitation still
+matches the original, and it can only live in the host's repository.
+
 ## GPU scene capture
 
 `ui.capture(width, height, theme, paint)` runs a view that uses `ui.surface` and
