@@ -11,7 +11,9 @@
 
 pub mod action;
 pub mod dashboard;
+pub mod grafana;
 pub mod profile;
+pub mod prometheus;
 pub mod scene;
 
 pub use action::{
@@ -22,5 +24,7 @@ pub use dashboard::{
     FieldType, FieldValues, Panel, PanelKind, PanelRect, Query, TimeBound, TimeRange,
     TransformSpec, Variable,
 };
+pub use grafana::{import_dashboard, ImportWarning, ImportedDashboard};
 pub use profile::Profile;
+pub use prometheus::{QueryRequest, QueryResult, QUERY_REQUEST_KIND, QUERY_RESULT_KIND};
 pub use scene::{Rect, Scene, Text};

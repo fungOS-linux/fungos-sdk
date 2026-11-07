@@ -103,7 +103,9 @@ tend build examples/components/demo.lua examples/components/snapshot.lua \
 
 For the portable dashboard/data-frame contract, see
 [`docs/dashboard-model.md`](docs/dashboard-model.md). For the Grafana gap
-analysis, see [`docs/grafana-gap.md`](docs/grafana-gap.md).
+analysis, see [`docs/grafana-gap.md`](docs/grafana-gap.md). The Prometheus over
+Unibus query contract is in
+[`docs/grafana-query-contract.md`](docs/grafana-query-contract.md).
 
 See [`docs/components.md`](docs/components.md),
 [`docs/package-model.md`](docs/package-model.md), and

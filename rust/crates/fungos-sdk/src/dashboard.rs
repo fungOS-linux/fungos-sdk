@@ -788,6 +788,13 @@ pub enum TransformSpec {
         mappings: BTreeMap<String, String>,
     },
     SeriesToRows,
+    /// A transform this version does not model yet. A renderer must surface it
+    /// as unsupported rather than silently ignoring it.
+    Custom {
+        kind: String,
+        #[serde(default)]
+        options: Value,
+    },
 }
 
 impl TransformSpec {
@@ -817,6 +824,9 @@ impl TransformSpec {
             }
             Self::Limit { limit } if *limit == 0 => {
                 return Err("transform limit must be positive".into());
+            }
+            Self::Custom { kind, .. } if kind.trim().is_empty() => {
+                return Err("custom transform kind must not be empty".into());
             }
             _ => {}
         }

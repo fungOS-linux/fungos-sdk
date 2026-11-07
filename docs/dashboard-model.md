@@ -92,6 +92,22 @@ boolean -> Vec<Option<bool>>
 Fields in one frame must have equal lengths. A field's declared type must match
 its values. Nulls are first-class.
 
+## Grafana adapter
+
+`grafana-import` converts Grafana dashboard JSON into this contract:
+
+```sh
+grafana-import dashboard.json --out dashboard.normalized.json
+```
+
+It imports rows, panels, targets, variables, annotations, field config,
+thresholds, mappings, overrides, links and the supported transform subset.
+Unsupported panels/transforms remain explicit (`custom`) and are reported as
+warnings; the importer does not silently pretend they worked.
+
+The Prometheus-over-Unibus query contract is in
+[`grafana-query-contract.md`](grafana-query-contract.md).
+
 ## Example
 
 ```json

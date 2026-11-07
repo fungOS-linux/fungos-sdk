@@ -1,10 +1,12 @@
 # Grafana dashboard gap analysis
 
-Status: analysis plus the first landed contracts. The shared dashboard types are
-in `crates/fungos-sdk/src/dashboard.rs`; the GPU dense/3D path is in Soil. The
-Grafana importer and datasource adapters are still next. Scope: what an
-operational Grafana dashboard needs, how Soil's `Lua -> scene -> WGPU` stack maps
-to it, and what must exist before a Grafana importer is credible.
+Status: the first vertical is landed. The shared dashboard types are in
+`crates/fungos-sdk/src/dashboard.rs`, the Grafana importer is in `grafana.rs`,
+the Prometheus-over-Unibus contract is in `prometheus.rs`, and Soil has a native
+`soil-grafana` preview plus a `grafana-viewer` Spore package. The actual
+Prometheus adapter process and appdata/Unibus host wiring are next. Scope: what
+an operational Grafana dashboard needs, how Soil's `Lua -> scene -> WGPU` stack
+maps to it, and what must exist before a Grafana importer is credible.
 
 ## Recommendation
 
@@ -199,11 +201,13 @@ Small enough to land without blocking GPU:
 
 1. ~~Add `DataFrame`, `FieldConfig`, `Query` and `Panel` types to the shared Rust
    model, with JSON round-trip tests.~~ Landed in `fungos-sdk`.
-2. Add units, decimals, thresholds, mappings and overrides to the existing panel
-   renderer.
-3. Add a Grafana fixture importer for time-series + stat panels only.
-4. Render two imported Grafana fixtures with the existing scene renderer.
-5. Add a Prometheus adapter behind the same `Query` contract.
+2. ~~Add a Grafana fixture importer for time-series + stat panels only.~~
+   Landed for time series, stat, gauge, table and text, with explicit warnings
+   for unsupported panels/transforms.
+3. ~~Render an imported Grafana fixture with the existing scene renderer.~~
+   Landed as the native `soil-grafana` preview and `grafana-viewer` Spore.
+4. Add a Prometheus adapter process behind `prometheus.query.request.v1`.
+5. Add appdata/Unibus host wiring to the Spore runtime.
 6. Add variables and a time-range picker after the data contract is stable.
 
 This gives a credible answer to "can the framework host a Grafana dashboard?"
