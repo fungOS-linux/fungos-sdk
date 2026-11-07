@@ -5,13 +5,22 @@
 //! rendering.
 //!
 //! - [`scene`] mirrors the Canvas scene primitives.
+//! - [`dashboard`] is the portable dashboard, frame, query and field contract.
 //! - [`action`] mirrors UI action intents and the Unibus action envelope.
 //! - [`profile`] mirrors the user/app UI profile.
 
 pub mod action;
+pub mod dashboard;
 pub mod profile;
 pub mod scene;
 
-pub use action::{ActionIntent, ActionInvoke, ActionResult, ACTION_INVOKE_KIND, ACTION_RESULT_KIND};
+pub use action::{
+    ActionIntent, ActionInvoke, ActionResult, ACTION_INVOKE_KIND, ACTION_RESULT_KIND,
+};
+pub use dashboard::{
+    AnnotationQuery, Dashboard, DataFrame, DatasourceRef, Field, FieldConfig, FieldOverride,
+    FieldType, FieldValues, Panel, PanelKind, PanelRect, Query, TimeBound, TimeRange,
+    TransformSpec, Variable,
+};
 pub use profile::Profile;
 pub use scene::{Rect, Scene, Text};

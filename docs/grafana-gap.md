@@ -1,8 +1,10 @@
 # Grafana dashboard gap analysis
 
-Status: analysis. Scope: what an operational Grafana dashboard needs, how Soil's
-`Lua -> scene -> WGPU` stack maps to it, and what must exist before a Grafana
-importer is credible.
+Status: analysis plus the first landed contracts. The shared dashboard types are
+in `crates/fungos-sdk/src/dashboard.rs`; the GPU dense/3D path is in Soil. The
+Grafana importer and datasource adapters are still next. Scope: what an
+operational Grafana dashboard needs, how Soil's `Lua -> scene -> WGPU` stack maps
+to it, and what must exist before a Grafana importer is credible.
 
 ## Recommendation
 
@@ -69,7 +71,9 @@ These are real and should not be thrown away:
 - axes with nice ticks and Y-bound fitting;
 - annotations, bands and thresholds;
 - 2D mark breadth: line, area, band, bars, stacked bars/areas, candles, step,
-  histogram, dense line/scatter, projected 3D;
+  histogram, dense line/scatter and a GPU 3D point cloud;
+- resident dense buffers with a GPU compute decimation pass;
+- a depth-tested 3D pipeline with a rotating camera;
 - native WGPU host that can target WebGPU later;
 - Spore packaging and deterministic frame capture.
 
@@ -189,12 +193,12 @@ The importer must never silently drop a panel or a field config. Either the
 feature is represented, the importer emits a visible diagnostic, or the import
 fails.
 
-## Suggested first interop slice
+## First interop slice
 
 Small enough to land without blocking GPU:
 
-1. Add `DataFrame`, `FieldConfig`, `Query` and `Panel` types to the shared Rust
-   model, with JSON round-trip tests.
+1. ~~Add `DataFrame`, `FieldConfig`, `Query` and `Panel` types to the shared Rust
+   model, with JSON round-trip tests.~~ Landed in `fungos-sdk`.
 2. Add units, decimals, thresholds, mappings and overrides to the existing panel
    renderer.
 3. Add a Grafana fixture importer for time-series + stat panels only.
@@ -207,15 +211,17 @@ without committing to all of Grafana's control plane.
 
 ## Relationship to the GPU track
 
-The GPU track should continue. Its next boundary is:
+The GPU boundary has landed:
 
 ```text
-resident dense buffer -> compute decimation -> GPU 3D pipeline
+resident dense buffer -> GPU compute decimation -> depth-tested 3D pipeline
 ```
 
-That work is orthogonal to dashboard interop. It makes Soil better than a
-dashboard renderer for rich UIs, large-scale traces and 3D operational views. It
-should not be used as the prerequisite for basic Grafana-style time series.
+Surfaces, richer 3D materials and more decimation policies are still future
+work, but the expensive architectural jump is done. It remains orthogonal to
+dashboard interop: it makes Soil better than a dashboard renderer for rich UIs,
+large-scale traces and 3D operational views. It is not a prerequisite for basic
+Grafana-style time series.
 
 The two tracks meet at the shared field config and DataFrame contract:
 

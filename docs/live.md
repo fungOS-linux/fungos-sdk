@@ -126,7 +126,7 @@ Resident dense series and projected 3D layers are also available:
 live.dense {
   id = "million-points",
   points = 1000000,
-  threshold = 6000,
+  threshold = 6000, -- GPU buckets
   mode = "line", -- or "scatter"
 }
 
@@ -137,10 +137,15 @@ live.pointcloud3d {
 }
 ```
 
-The dense source is generated/resident in Rust and LTTB-decimated to a bounded
-display set. The point cloud is a CPU-projected rotating 3D layer with
-depth-sorted marks. These are the first stage; the GPU compute decimation pass
-and true GPU 3D pipeline reuse the same resident data model.
+The dense source is generated and kept resident in Rust. A GPU compute pass
+reduces it to one average point per display bucket; the line/scatter path then
+draws that resident output buffer without a per-frame CPU decimation step. The
+point cloud is uploaded once and drawn through a depth-tested 3D pipeline with a
+rotating camera. Neither path creates one scene node per point.
+
+These resources are host-local and deliberately not serialized into a captured
+`soil_scene` JSON document. A document can name them for a live host, but a
+serialized scene must not smuggle a million points through the wire.
 
 Histograms are a separate layer kind:
 
