@@ -610,6 +610,37 @@ function ui.editor(id, value, opts)
   return ui.text_input(id, value, opts)
 end
 
+--- The intent that saves an editor's buffer, carrying its version guard.
+---
+--- `expected_version` is on the editor node, so a view that hand-builds
+--- `action.intent(...)` can silently drop it and the host is left with nothing
+--- to check the write against. Building the intent here is the only way that
+--- cannot happen: the version comes from the node, and `extra` cannot override
+--- it. A node with no guard is an error rather than an unguarded save.
+---
+--- `fungos.action` is resolved at call time, not at load time: this module is
+--- inlined standalone by package builders and deliberately has no load-time
+--- `require`. A missing module is a named error, never a hand-rolled intent.
+function ui.save_intent(editor, action_id, extra)
+  if type(editor) ~= "table" then
+    error("ui.save_intent needs an editor node", 2)
+  end
+  if editor.expected_version == nil then
+    error("ui.save_intent: editor " .. tostring(editor.id or "?")
+      .. " has no expected_version", 2)
+  end
+  local ok, action = pcall(require, "fungos.action")
+  if not ok then
+    error("ui.save_intent cannot load fungos.action: " .. tostring(action), 2)
+  end
+  if type(action) ~= "table" or type(action.intent) ~= "function" then
+    error("ui.save_intent needs fungos.action.intent", 2)
+  end
+  local params = copy(extra or {})
+  params.expected_version = editor.expected_version
+  return action.intent(action_id, params)
+end
+
 --- A command/search bar. The host wires text input; this is the surface.
 function ui.command_bar(id, opts)
   opts = opts or {}
