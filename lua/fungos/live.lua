@@ -184,6 +184,28 @@ function live.histogram(opts)
   return out
 end
 
+--- A resident dense series with CPU LTTB decimation.
+function live.dense(opts)
+  opts = opts or {}
+  local out = layer("dense", opts)
+  out.points = tonumber(opts.points) or 1000000
+  out.seed = tonumber(opts.seed) or 0
+  out.threshold = tonumber(opts.threshold) or 4000
+  out.mode = opts.mode or opts.kind or "line"
+  return out
+end
+
+--- A generated 3D point cloud, projected by the native host.
+function live.pointcloud3d(opts)
+  opts = opts or {}
+  local out = layer("pointcloud3d", opts)
+  out.points = tonumber(opts.points) or 20000
+  out.seed = tonumber(opts.seed) or 0
+  out.pitch = tonumber(opts.pitch)
+  out.size = tonumber(opts.size)
+  return out
+end
+
 function live.graph(opts)
   opts = opts or {}
   local out = layer("graph", opts)

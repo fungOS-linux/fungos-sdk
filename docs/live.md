@@ -120,6 +120,28 @@ live.series {
 ```
 
 
+Resident dense series and projected 3D layers are also available:
+
+```lua
+live.dense {
+  id = "million-points",
+  points = 1000000,
+  threshold = 6000,
+  mode = "line", -- or "scatter"
+}
+
+live.pointcloud3d {
+  id = "cloud",
+  points = 20000,
+  pitch = 0.38,
+}
+```
+
+The dense source is generated/resident in Rust and LTTB-decimated to a bounded
+display set. The point cloud is a CPU-projected rotating 3D layer with
+depth-sorted marks. These are the first stage; the GPU compute decimation pass
+and true GPU 3D pipeline reuse the same resident data model.
+
 Histograms are a separate layer kind:
 
 ```lua
