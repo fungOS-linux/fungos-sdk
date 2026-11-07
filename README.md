@@ -101,6 +101,9 @@ tend build examples/components/demo.lua examples/components/snapshot.lua \
   --out dist/
 ```
 
+For dashboard interoperability, see
+[`docs/grafana-gap.md`](docs/grafana-gap.md).
+
 See [`docs/components.md`](docs/components.md) and
 [`docs/package-model.md`](docs/package-model.md).
 
