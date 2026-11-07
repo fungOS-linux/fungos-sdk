@@ -1321,11 +1321,47 @@ function ui.surface(width, height, theme)
 end
 
 --- Draw laid-out text nodes with a default ink policy.
+local function measured_width(surface, value, size)
+  local measured = surface.measure_text and surface:measure_text(value, size)
+  if type(measured) == "table" and type(measured.width) == "number" then
+    return measured.width
+  end
+  return tonumber(measured) or (#tostring(value or "") * size * 0.58)
+end
+
+local function wrap_lines(surface, value, size, width)
+  local lines = {}
+  for paragraph in tostring(value or ""):gmatch("[^\n]+") do
+    local current = ""
+    for word in paragraph:gmatch("%S+") do
+      local candidate = current == "" and word or (current .. " " .. word)
+      if current ~= "" and measured_width(surface, candidate, size) > width then
+        lines[#lines + 1] = current
+        current = word
+      else
+        current = candidate
+      end
+    end
+    lines[#lines + 1] = current
+  end
+  if #lines == 0 then lines[1] = "" end
+  return lines
+end
+
 function ui.paint_text(surface, laid, ink_for)
   for _, item in ipairs((laid and laid.nodes) or {}) do
     if item.kind == "text" and item.style then
       local ink = (ink_for and ink_for(item)) or item.ink or "text"
-      surface:text(item.id, item.text, item.rect.x, item.rect.y, item.style.size, ink)
+      local lines = { item.text }
+      if item.style.wrap and item.rect.width and item.rect.width > 1 then
+        lines = wrap_lines(surface, item.text, item.style.size, item.rect.width)
+      end
+      local line_height = item.style.line_height or (item.style.size + 4)
+      for index, line in ipairs(lines) do
+        local id = index == 1 and item.id or (item.id .. "-line-" .. index)
+        surface:text(id, line, item.rect.x, item.rect.y + (index - 1) * line_height,
+          item.style.size, ink)
+      end
     end
   end
 end
