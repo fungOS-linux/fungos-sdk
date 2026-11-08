@@ -261,6 +261,7 @@ local MODULES = {
   ["fungos.compose"] = "lua/fungos/compose.lua",
   ["fungos.action"] = "lua/fungos/action.lua",
   ["fungos.chart"] = "lua/fungos/chart.lua",
+  ["fungos.dashboard"] = "lua/fungos/dashboard.lua",
   ["fungos.viz"] = "lua/fungos/viz.lua",
   ["fungos.graph"] = "lua/fungos/graph.lua",
   ["fungos.map"] = "lua/fungos/map.lua",

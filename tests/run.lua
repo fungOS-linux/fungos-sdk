@@ -18,12 +18,26 @@ local viz = load_module("lua/fungos/viz.lua")
 local graph = load_module("lua/fungos/graph.lua")
 local map = load_module("lua/fungos/map.lua")
 local atlas = load_module("lua/fungos/atlas.lua")
+local dashboard = load_module("lua/fungos/dashboard.lua")
 
 local passed = 0
 local function ok(value, message)
   if not value then error(message or "assertion failed", 2) end
   passed = passed + 1
 end
+
+-- Dashboard primitives share formatting and semantic threshold/status colors.
+ok(dashboard.format(1240, 0, " req/s") == "1240 req/s", "dashboard formats units")
+ok(dashboard.status_ink("warning") == "warning", "warning is a warning ink")
+ok(dashboard.status_ink("crit") == "danger", "crit maps to danger")
+ok(dashboard.threshold_ink(65, {
+  { value = 70, ink = "warning" },
+  { value = 90, ink = "danger" },
+}, "success") == "success", "below the first threshold uses the base ink")
+ok(dashboard.threshold_ink(95, {
+  { value = 70, ink = "warning" },
+  { value = 90, ink = "danger" },
+}, "success") == "danger", "thresholds choose the highest reached step")
 
 -- profile precedence: global < app < explicit
 local profile = config.normalize({
