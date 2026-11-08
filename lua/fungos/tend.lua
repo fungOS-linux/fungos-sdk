@@ -27,6 +27,7 @@ tend.commands = {
   ["build"] = true,
   ["list"] = true,
   ["api-check"] = true,
+  ["watch"] = true,
 }
 
 --- Parse argv into an options table.

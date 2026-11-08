@@ -342,6 +342,10 @@ return function(T, root)
         T.truthy(tend.commands["api-check"], "api-check")
       end },
 
+      { name = "watch is a registered command", fn = function()
+        T.truthy(tend.commands["watch"], "watch")
+      end },
+
       -- baseline_entries --------------------------------------------------
       { name = "baseline_entries is empty for empty text", fn = function()
         local entries = tend.baseline_entries("")
