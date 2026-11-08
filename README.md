@@ -67,12 +67,15 @@ Once the SDK is installed:
 tend doctor examples/inbox.lua --snapshot examples/inbox_snapshot.lua
 tend check examples/inbox.lua examples/inbox_snapshot.lua
 tend examples/inbox.lua --snapshot examples/inbox_snapshot.lua --surface inbox
+tend watch examples/inbox.lua examples/inbox_snapshot.lua --surface inbox --name inbox
 ```
 
 `tend` composes the SDK, the view, components, a snapshot, and the user profile
 into a module, runs a fake-host preflight, and only then writes/reloads Canvas.
 The preflight catches sparse child arrays, duplicate ids, invalid kinds, empty or
-non-printable scene text, non-finite geometry, and malformed scene calls.
+non-printable scene text, non-finite geometry, and malformed scene calls. It also
+enforces Canvas's 256 retained-node and 64 KiB module ceilings by default;
+override them with `--max-nodes` and `--max-bytes` for a different host.
 
 ## GPU scene capture
 
