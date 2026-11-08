@@ -11,6 +11,7 @@ The SDK has two jobs:
 fungos-sdk/
   lua/fungos/
     ui.lua        # declarative tree, host layout, scene primitives
+    dashboard.lua # panel/stat/gauge/table/chart scene primitives
     compose.lua   # app + component + chrome + rice composition
     config.lua    # profile resolution
     action.lua    # action intents
@@ -32,7 +33,10 @@ catalog with `ui.action_bar_from_catalog`. See
 
 Charts use the same rule: `require("fungos.chart")` describes series, axes and
 labels in Lua; the painter emits scene primitives. See
-[`docs/chart.md`](docs/chart.md).
+[`docs/chart.md`](docs/chart.md). Dashboard panels use
+[`lua/fungos/dashboard.lua`](lua/fungos/dashboard.lua); the fixture-driven
+[`examples/gallery`](examples/gallery) demonstrates panel chrome, stats, gauges,
+tables, thresholds and time-series selection.
 
 ## The boundary
 
@@ -99,6 +103,7 @@ tend doctor examples/inbox.lua --snapshot examples/inbox_snapshot.lua
 tend check examples/inbox.lua examples/inbox_snapshot.lua
 tend examples/inbox.lua --snapshot examples/inbox_snapshot.lua --surface inbox
 tend watch examples/inbox.lua examples/inbox_snapshot.lua --surface inbox --name inbox
+tend build examples/gallery/view.lua examples/gallery/snapshot.lua --name gallery --out /tmp/tend-build
 ```
 
 `tend` composes the SDK, the view, components, a snapshot, and the user profile

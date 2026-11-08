@@ -89,6 +89,18 @@ lua tools/tend.lua list
 not available. A check can use the same viewport as the target surface:
 `tend check view.lua snapshot.lua --width 1200 --height 840`.
 
+## Dashboard gallery
+
+`examples/gallery` is the fixture-driven gallery for the scene-level dashboard
+primitives in `lua/fungos/dashboard.lua` (panel, stat, gauge, table, chart,
+status):
+
+```sh
+lua tools/tend.lua check examples/gallery/view.lua examples/gallery/snapshot.lua --name gallery
+lua tools/tend.lua examples/gallery/view.lua examples/gallery/snapshot.lua \
+  --name gallery --surface gallery --no-workspace
+```
+
 ## Components
 
 ```sh
