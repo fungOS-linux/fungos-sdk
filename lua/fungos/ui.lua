@@ -133,7 +133,10 @@ end
 function ui.viewport(fallback_w, fallback_h)
   local module = rawget(_G, "module")
   local vp = module and (module.viewport or (module.theme and module.theme.viewport))
-  if vp and vp.width and vp.height and vp.width > 0 and vp.height > 0 then
+  -- `type(vp) == "table"` is load-bearing: a host theme may answer every token
+  -- it is asked for, and `theme.viewport` is then a length, not a size. Reading
+  -- `.width` off that is how a render dies before it draws anything.
+  if type(vp) == "table" and vp.width and vp.height and vp.width > 0 and vp.height > 0 then
     return vp.width, vp.height
   end
   return fallback_w or 1086, fallback_h or 1569

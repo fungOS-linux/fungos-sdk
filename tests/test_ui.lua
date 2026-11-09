@@ -133,6 +133,18 @@ return function(T, root)
         T.equal(theme.body, 18, "an explicit profile value wins over the host")
         T.equal(theme.micro, 15, "configuring one token leaves the others alone")
       end },
+
+      { name = "viewport survives a theme that answers every token", fn = function()
+        -- A host theme is free to answer any key it is asked for, and then
+        -- `theme.viewport` is a length rather than a size. Reading `.width` off
+        -- that number killed the render before it drew anything.
+        local saved = _G.module
+        _G.module = { theme = setmetatable({}, { __index = function() return 0.5 end }) }
+        local w, h = ui.viewport(1086, 1569)
+        _G.module = saved
+        T.equal(w, 1086, "falls back to the authoring width")
+        T.equal(h, 1569, "falls back to the authoring height")
+      end },
     },
   }
 end
