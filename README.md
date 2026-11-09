@@ -38,6 +38,17 @@ labels in Lua; the painter emits scene primitives. See
 [`examples/gallery`](examples/gallery) demonstrates panel chrome, stats, gauges,
 tables, thresholds and time-series selection.
 
+## Scene document path
+
+`ui.capture(width, height, theme, paint)` returns a versioned `soil_scene`
+`Present` payload plus the view's hit targets. `ui.present(...)` is the live
+counterpart: it sends that same document through the host's `canvas.present`
+(or `soil.canvas.present`) and registers hits with `widget.hit` when available.
+This is the Lua peer of the Rust `soil_sdk_canvas::Surface::present_scene`:
+both languages describe the same scene document, with the same semantic inks
+and the same view-owned geometry. Hosts without `canvas.present` keep the
+legacy `ui.surface` drawing path.
+
 ## The boundary
 
 ```text
