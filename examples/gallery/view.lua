@@ -21,10 +21,10 @@ function M.render(snapshot)
   local surface = ui.surface(width, height, ui.theme())
   surface:background("background")
 
-  surface:text("gallery-title", "Canvas dashboard primitives", 18, 12, 18, "text")
+  surface:text("gallery-title", "Canvas dashboard primitives", 18, 8, 18, "text")
   surface:text("gallery-subtitle",
     "panel chrome · stat · gauge · table · axes · legend · selection · thresholds",
-    18, 38, 9, "muted")
+    18, 46, 9, "muted")
   status(surface, width - 170, 21)
 
   local stats = snapshot.stats or {}
@@ -37,7 +37,9 @@ function M.render(snapshot)
 
   dashboard.gauge(surface, "gallery-gauge", 0, 184, 344, 212, snapshot.gauge or {})
   dashboard.table(surface, "gallery-table", 356, 184, 844, 212, snapshot.table or {})
-  dashboard.chart(surface, "gallery-chart", 0, 408, 1200, 420, snapshot.chart or {})
+  local chart = snapshot.chart or {}
+  chart.columns = 24
+  dashboard.chart(surface, "gallery-chart", 0, 408, 1200, 420, chart)
 end
 
 return M

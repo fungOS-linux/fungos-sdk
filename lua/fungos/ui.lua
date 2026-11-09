@@ -13,7 +13,7 @@
 
 local ui = {}
 
-ui.version = "0.1.0"
+ui.version = "0.2.0"
 
 local unpack = table.unpack or unpack
 
@@ -1149,6 +1149,49 @@ function ui.capture(width, height, theme, paint)
     transparent = surface.scene.transparent,
   }
   return present, surface.hits
+end
+
+--- The host's soil document presenter, if this host grants one.
+local function soil_presenter()
+  local canvas_api = rawget(_G, "canvas")
+  local host = canvas_api and canvas_api.present
+  if not host then
+    local soil = rawget(_G, "soil")
+    host = soil and soil.canvas and soil.canvas.present
+  end
+  return host
+end
+
+--- Present a scene document this library did not build. This is the Lua peer of
+--- `soil_sdk_canvas::Surface::present`.
+function ui.present_document(document)
+  local host = soil_presenter()
+  if not host then
+    error("this host has no soil document capability (canvas.present)", 2)
+  end
+  return host(document)
+end
+
+--- Present a view through the host's granted soil capability.
+---
+--- This is the live counterpart of `ui.capture`: the same `soil_scene`
+--- document the Rust `soil-sdk-canvas` crate sends is handed to
+--- `canvas.present` (Canvas's module binding) or `soil.canvas.present` (a
+--- non-Canvas host). Hit targets are registered through `widget.hit` when the
+--- host provides it, and are always returned so a caller can route them itself.
+---
+--- Older hosts without `canvas.present` keep the legacy `ui.surface` path.
+function ui.present(width, height, theme, paint)
+  if soil_presenter() then
+    local document, hits = ui.capture(width, height, theme, paint)
+    local widget = rawget(_G, "widget")
+    if widget and widget.hit then
+      for _, hit in ipairs(hits) do widget.hit(hit) end
+    end
+    return ui.present_document(document), hits
+  end
+  local surface = ui.surface(width, height, theme)
+  paint(surface)
 end
 
 --- A rect inside an existing surface, in logical pixels.

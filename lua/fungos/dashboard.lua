@@ -104,7 +104,7 @@ function dashboard.panel(surface, id, x, y, width, height, opts)
   if present(opts.title) then
     surface:text(id .. "-title", tostring(opts.title), x + pad, y + 9,
       finite(opts.title_size, 13), opts.title_ink or "text")
-    top = y + 30
+    top = y + 38
   end
   if present(opts.subtitle) then
     local size = finite(opts.subtitle_size, 9)
@@ -351,7 +351,7 @@ function dashboard.chart(surface, id, x, y, width, height, opts)
     local label = dashboard.format(value, opts.x_decimals)
     surface:text(id .. "-x-" .. index, label,
       x_pos(value) - text_width(surface, label, 8) / 2,
-      plot_y + plot_h + 5, 8, "muted")
+      plot_y + plot_h + 9, 8, "muted")
   end
 
   if opts.selection then
@@ -359,7 +359,7 @@ function dashboard.chart(surface, id, x, y, width, height, opts)
     local to = clamp(finite(opts.selection.x1, x_max), x_min, x_max)
     if from > to then from, to = to, from end
     surface:rect(id .. "-selection", x_pos(from), plot_y,
-      math.max(1, x_pos(to) - x_pos(from)), plot_h, "primary", 0.12, 0)
+      math.max(1, x_pos(to) - x_pos(from)), plot_h, "primary", 0.07, 0)
   end
   if opts.threshold then
     local value = finite(opts.threshold.value, nil)

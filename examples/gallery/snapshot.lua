@@ -1,11 +1,19 @@
 -- Deterministic fixtures for the Canvas dashboard component gallery.
 -- Shapes match the shared dashboard contract: panel metrics, threshold steps,
 -- table rows and time-series points. No live data or authority is involved.
+--
+-- Canvas supplies `module.event` and a host-stamped `module.now` on every
+-- render. When the module host is driving the surface, shift the fixture phase
+-- with that clock so periodic reloads animate the chart. `tend` preflight has
+-- no event, so `tend check` stays deterministic.
+local live_module = rawget(_G, "module")
+local live = type(live_module) == "table" and type(live_module.event) == "table"
+local live_phase = live and ((tonumber(live_module.now and live_module.now.epoch_ms) or 0) / 1000) or 0
 
 local function series(count, base, amplitude, period, phase, spike_at, spike)
   local points = {}
   for index = 0, count do
-    local y = base + amplitude * math.sin((index + phase) / period)
+    local y = base + amplitude * math.sin((index + phase + live_phase * 2.2) / period)
     if spike_at and index >= spike_at then
       local tail = math.max(0, 1 - (index - spike_at) / 10)
       y = y + spike * tail
@@ -15,7 +23,7 @@ local function series(count, base, amplitude, period, phase, spike_at, spike)
   return points
 end
 
-return {
+local snapshot = {
   generated = "fixture",
   stats = {
     {
@@ -97,3 +105,12 @@ return {
     },
   },
 }
+
+if live then
+  local pulse = math.sin(live_phase * 1.7)
+  snapshot.gauge.value = 76 + pulse * 2.5
+  snapshot.stats[1].value = 1240 + pulse * 24
+  snapshot.stats[2].value = 238 + pulse * 3
+end
+
+return snapshot

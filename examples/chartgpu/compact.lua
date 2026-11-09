@@ -77,11 +77,11 @@ local function panel(parent, width, height, spec, x, y, w, h, prefix)
   local pw, ph = w * width - 12, h * height - 12
   local surface = ui.subsurface(parent, x * width, y * height, pw, ph, prefix)
   surface:rect("panel", 0, 0, pw, ph, C.panel, 0.94, 10, -0.1)
-  surface:text("title", spec.title, 14, 11, 14, C.text)
-  surface:text("subtitle", spec.subtitle or "", 14, 29, 9, C.muted)
-  surface:text("live", "LIVE", pw - text_width("LIVE", 8) - 13, 12, 8, C.green)
+  surface:text("title", spec.title, 14, 8, 14, C.text)
+  surface:text("subtitle", spec.subtitle or "", 14, 33, 9, C.muted)
+  surface:text("live", "LIVE", pw - text_width("LIVE", 8) - 13, 10, 8, C.green)
 
-  local left, top, right, bottom = 44, 48, 12, 56
+  local left, top, right, bottom = 44, 54, 12, 56
   local plot_w, plot_h = math.max(16, pw - left - right), math.max(16, ph - top - bottom)
   surface:rect("plot", left, top, plot_w, plot_h, C.plot, 0.76, 7)
 
