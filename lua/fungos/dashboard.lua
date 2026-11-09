@@ -104,7 +104,7 @@ function dashboard.panel(surface, id, x, y, width, height, opts)
   if present(opts.title) then
     surface:text(id .. "-title", tostring(opts.title), x + pad, y + 9,
       finite(opts.title_size, 13), opts.title_ink or "text")
-    top = y + 30
+    top = y + 38
   end
   if present(opts.subtitle) then
     local size = finite(opts.subtitle_size, 9)

@@ -1,11 +1,19 @@
 -- Deterministic incident replay for the Canvas ChartGPU surface.
 -- The native ChartGPU Spore generates these streams in Rust; this snapshot is
 -- the same shape so the Lua view can be iterated through `tend watch`.
+--
+-- Canvas supplies `module.event` and a host-stamped `module.now` on every
+-- render. When the module host is driving the surface, shift the replay phase
+-- with that clock so periodic reloads animate the series. `tend` preflight has
+-- no event, so `tend check` stays deterministic.
+local live_module = rawget(_G, "module")
+local live = type(live_module) == "table" and type(live_module.event) == "table"
+local live_phase = live and ((tonumber(live_module.now and live_module.now.epoch_ms) or 0) / 1000) or 0
 
 local function series(count, base, amplitude, period, phase, spike_at, spike)
   local points = {}
   for i = 0, count do
-    local y = base + amplitude * math.sin((i + phase) / period)
+    local y = base + amplitude * math.sin((i + phase + live_phase * 2.6) / period)
     if spike_at and i >= spike_at then
       local tail = math.max(0, 1 - (i - spike_at) / 12)
       y = y + spike * tail

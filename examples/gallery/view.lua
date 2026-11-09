@@ -21,10 +21,10 @@ function M.render(snapshot)
   local surface = ui.surface(width, height, ui.theme())
   surface:background("background")
 
-  surface:text("gallery-title", "Canvas dashboard primitives", 18, 12, 18, "text")
+  surface:text("gallery-title", "Canvas dashboard primitives", 18, 8, 18, "text")
   surface:text("gallery-subtitle",
     "panel chrome · stat · gauge · table · axes · legend · selection · thresholds",
-    18, 38, 9, "muted")
+    18, 46, 9, "muted")
   status(surface, width - 170, 21)
 
   local stats = snapshot.stats or {}
