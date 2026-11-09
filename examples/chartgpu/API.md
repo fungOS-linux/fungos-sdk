@@ -48,10 +48,15 @@ lua tools/tend.lua watch examples/chartgpu/compact.lua \
 ## Dense scene path
 
 `scene_live.lua` is the quality-first Lua path. It does not go through the Lua
-module limit: it writes a validated Canvas `scene` surface directly. The current
-five-panel replay is 557 nodes (60, 48, 44, 40 and 40 columns per series), with
-axes, panel chrome and legends. A one-shot patch is about 111 KiB and applies in
-roughly 0.13 s on the running Canvas.
+module limit: it writes a validated Canvas `scene` surface directly. The producer
+reads the current Canvas frame with `canvasctl surfaces` (or
+`CANVAS_VIEWPORT=1200x840` for a deterministic capture) and lays out panels,
+gutters, text and column density from that viewport. A wider window gets wider
+plots instead of a stretched 1200x840 preview.
+
+At 1200x840 the five-panel replay is 597 nodes, with axes, panel chrome and
+legends; a 1920x1175 frame grows to 779 nodes. A 1200x840 one-shot patch is about
+119 KiB and applies in roughly 0.13 s on the running Canvas.
 
 ```sh
 lua examples/chartgpu/scene_live.lua --once
