@@ -37,7 +37,9 @@ function M.render(snapshot)
 
   dashboard.gauge(surface, "gallery-gauge", 0, 184, 344, 212, snapshot.gauge or {})
   dashboard.table(surface, "gallery-table", 356, 184, 844, 212, snapshot.table or {})
-  dashboard.chart(surface, "gallery-chart", 0, 408, 1200, 420, snapshot.chart or {})
+  local chart = snapshot.chart or {}
+  chart.columns = 24
+  dashboard.chart(surface, "gallery-chart", 0, 408, 1200, 420, chart)
 end
 
 return M
