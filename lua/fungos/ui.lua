@@ -94,24 +94,37 @@ ui.profile = copy(ui.defaults)
 --- Canvas draw ABI. A GPU/replay host installs this around a view's render.
 ui.backend = nil
 
+--- The theme keys a caller actually passed to `ui.configure`. Everything else
+--- in `ui.profile.theme` is `ui.defaults`, and a default is a fallback.
+local explicit_theme = {}
+
 --- Install a user/app profile. The profile is data, never authority.
 function ui.configure(profile, app_id)
   ui.profile = copy(ui.defaults)
   merge(ui.profile, profile or {})
-  if app_id and profile and type(profile.apps) == "table" and profile.apps[app_id] then
-    merge(ui.profile, profile.apps[app_id])
+  explicit_theme = copy((profile and profile.theme) or {})
+  local app = app_id and profile and type(profile.apps) == "table" and profile.apps[app_id]
+  if type(app) == "table" then
+    merge(ui.profile, app)
+    merge(explicit_theme, type(app.theme) == "table" and app.theme or {})
   end
+  ui.profile.explicit_theme = explicit_theme
   return ui.profile
 end
 
---- Resolve the host theme plus local overrides.
+--- Resolve the host theme plus local overrides, in that order.
+---
+--- A theme token can be a *length the host measures with*: Canvas sizes text as
+--- `scale * theme.body * depth(z)`, so a wall that publishes `body = 24` is not
+--- suggesting 24, it is drawing with it. `ui.defaults.theme` used to be merged
+--- last, which meant `ui.theme()` handed the wall 16 and every label on a 1.5x
+--- theme collapsed to one size. Defaults now fill only the tokens the host does
+--- not publish, and an explicit `ui.configure` value — the one place a caller
+--- says "not this" — still wins over both.
 function ui.theme(base)
-  -- Default to the host's palette. Before this, `ui.theme()` with no base
-  -- returned only the profile theme, so every `theme.<token>` fell through to
-  -- the `or 16` literals in this file and a view could not tell a real token
-  -- from a missing one.
-  local out = copy(base or (module and module.theme) or {})
-  merge(out, ui.profile.theme or {})
+  local out = copy(ui.profile.theme or {})
+  merge(out, base or (module and module.theme) or {})
+  merge(out, explicit_theme)
   if ui.profile.radius then out.radius = ui.profile.radius end
   return out
 end

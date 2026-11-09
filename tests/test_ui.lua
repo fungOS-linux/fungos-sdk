@@ -108,6 +108,31 @@ return function(T, root)
         end)
         T.truthy(rects > 0 and texts > 0, "legacy primitives still draw")
       end },
+
+      { name = "theme() keeps the host's scale and only fills its gaps", fn = function()
+        -- A theme token can be a length the host draws *with*, not a suggestion:
+        -- Canvas sizes text as `scale * theme.body * depth(z)`, so a default
+        -- that overwrote `body` collapsed a 1.5x wall back to one text size.
+        local saved = _G.module
+        _G.module = { theme = { body = 24, large = 27 } }
+        local theme = ui.theme()
+        _G.module = saved
+        T.equal(theme.body, 24, "the host's body wins over ui.defaults")
+        T.equal(theme.large, 27, "the host's large wins")
+        T.equal(theme.micro, 10, "a token the host omits comes from defaults")
+        T.equal(theme.small, 13, "a token the host omits comes from defaults")
+      end },
+
+      { name = "configure() is the one place a token may override the host", fn = function()
+        local saved = _G.module
+        _G.module = { theme = { body = 24, micro = 15 } }
+        ui.configure({ theme = { body = 18 } })
+        local theme = ui.theme()
+        ui.configure({})
+        _G.module = saved
+        T.equal(theme.body, 18, "an explicit profile value wins over the host")
+        T.equal(theme.micro, 15, "configuring one token leaves the others alone")
+      end },
     },
   }
 end
