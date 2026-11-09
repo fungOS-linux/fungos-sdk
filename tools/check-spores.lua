@@ -49,14 +49,25 @@ local function manifests(roots)
   return found
 end
 
+local function is_dir(path)
+  -- A directory renames to itself; a missing path does not.
+  return os.rename(path, path) ~= nil
+end
+
 local function check(path)
   local root = dirname(path)
-  local ui = root .. "/ui/API.md"
+  local ui_dir = root .. "/ui"
   local errors = {}
 
+  -- No Lua UI means no API to document. A Spore with a `ui/` directory does.
+  if not is_dir(ui_dir) then
+    return true, {}, false
+  end
+
+  local ui = ui_dir .. "/API.md"
   if not exists(ui) then
     errors[#errors + 1] = "missing " .. ui
-    return false, errors
+    return false, errors, true
   end
 
   local headings = {}
@@ -72,16 +83,50 @@ local function check(path)
       errors[#errors + 1] = "missing section containing " .. section
     end
   end
-  return #errors == 0, errors
+  return #errors == 0, errors, true
 end
 
-local roots = arg
+local function usage()
+  print("usage: check-spores [ROOT...]")
+  print("")
+  print("Every Spore with a ui/ directory must have ui/API.md with the")
+  print("contract sections. ROOT defaults to `.`.")
+end
+
+local roots = {}
+for _, value in ipairs(arg) do
+  if value == "--help" or value == "-h" then
+    usage()
+    os.exit(0)
+  elseif value:sub(1, 1) == "-" then
+    io.stderr:write("check-spores: unknown option " .. value .. "\n")
+    io.stderr:write("try --help\n")
+    os.exit(2)
+  else
+    roots[#roots + 1] = value
+  end
+end
 if #roots == 0 then roots = { "." } end
 
+for _, root in ipairs(roots) do
+  if not is_dir(root) then
+    io.stderr:write("check-spores: not a directory: " .. root .. "\n")
+    os.exit(2)
+  end
+end
+
+local found = manifests(roots)
+if #found == 0 then
+  io.stderr:write("check-spores: no spore.toml found under " .. table.concat(roots, ", ") .. "\n")
+  os.exit(2)
+end
+
 local failures = 0
-for _, manifest in ipairs(manifests(roots)) do
-  local ok, errors = check(manifest)
-  if ok then
+for _, manifest in ipairs(found) do
+  local ok, errors, has_ui = check(manifest)
+  if not has_ui then
+    print("skip " .. dirname(manifest) .. " (no ui/)")
+  elseif ok then
     print("ok   " .. dirname(manifest) .. "/ui/API.md")
   else
     failures = failures + 1
