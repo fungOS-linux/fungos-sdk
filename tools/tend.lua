@@ -159,7 +159,21 @@ local function undocumented_actions(dir, api_text)
   return gaps.undocumented
 end
 
---- Repo-wide sweep: every Spore with a spore.toml must ship ui/API.md.
+--- A Spore is held to the API-doc rule when it ships a Lua view: either the
+--- manifest declares a `[ui] entry`, or there is a `ui/*.lua` to document.
+---
+--- A command-line Spore whose whole surface is its arguments has no Lua API, and
+--- demanding a document for it fails a package that is doing nothing wrong.
+--- `dragshift` still counts: its `[ui]` block is commented out while it waits on
+--- a primitive, but the view it is waiting to ship is already in `ui/`.
+local function ships_view(dir)
+  local entry = tendlib.ui_entry(read(join(dir, "spore.toml")))
+  if entry and exists(join(dir, entry)) then return true end
+  return #shell_lines(string.format("find %q -maxdepth 1 -name '*.lua' -type f 2>/dev/null",
+    join(dir, "ui"))) > 0
+end
+
+--- Repo-wide sweep: every Spore that ships a Lua view must ship ui/API.md.
 ---
 --- The baseline makes this bind today instead of after a ten-file backfill:
 --- known-undocumented Spores are tolerated by path, so a *new* Spore without
@@ -178,7 +192,11 @@ local function api_check(options)
       local dir = dirname(manifest)
       local api = join(dir, "ui/API.md")
       local problems
-      if not exists(api) then
+      if not ships_view(dir) then
+        -- Nothing to document. This is not a pass and not a failure: the Spore
+        -- is outside the rule.
+        problems = nil
+      elseif not exists(api) then
         problems = "missing ui/API.md"
       else
         local text = read(api)

@@ -184,6 +184,39 @@ return function(T, root)
         os.execute("rm -rf " .. string.format("%q", dir))
         T.truthy(ok, "api-check should pass: " .. output)
       end },
+
+      { name = "api-check asks nothing of a Spore with no Lua view", fn = function()
+        -- A command-line Spore's whole surface is its arguments. The rule is
+        -- about the Lua API, so a package with no `ui/` has nothing to document
+        -- and nothing to fail.
+        local dir = temp_dir("spore")
+        os.execute("mkdir -p " .. string.format("%q", dir))
+        write(dir .. "/spore.toml", table.concat({
+          "schema = 1", "", "[spore]", 'id = "user.hue"', "",
+          "[module]", 'path = "module.wasm"', "",
+        }, "\n"))
+        local ok, _, output = api_check(dir)
+        os.execute("rm -rf " .. string.format("%q", dir))
+        T.truthy(ok, "api-check should pass: " .. output)
+        T.contains(output, "api-check ok", "ok line")
+      end },
+
+      { name = "api-check fails a Spore that ships a view without docs", fn = function()
+        -- The other half of the rule: a `ui/` puts the Spore inside it, whether
+        -- or not the manifest has declared `[ui] entry` yet.
+        local dir = temp_dir("spore")
+        os.execute("mkdir -p " .. string.format("%q", dir .. "/ui"))
+        write(dir .. "/spore.toml", table.concat({
+          "schema = 1", "", "[spore]", 'id = "user.dragshift"', "",
+          "[module]", 'path = "module.wasm"', "",
+        }, "\n"))
+        write(dir .. "/ui/view.lua", "return {}\n")
+        local ok, code, output = api_check(dir)
+        os.execute("rm -rf " .. string.format("%q", dir))
+        T.truthy(not ok, "api-check should fail")
+        T.equal(code, 1, "exit code")
+        T.contains(output, "missing ui/API.md", "missing doc reported")
+      end },
     },
   }
 end
