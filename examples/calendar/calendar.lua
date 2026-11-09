@@ -795,7 +795,10 @@ function M.render(input)
     now = ui.now_ms(),
   }
   local tree = render(snapshot, state, ctx)
-  local laid = canvas.layout(tree, ctx.viewport.width, ctx.viewport.height)
+  -- `ui.layout`, never `canvas.layout`: the kit falls back to its own pass when
+  -- the host has no layout service, and a view that calls the host directly only
+  -- runs where that host exists.
+  local laid = ui.layout(tree, ctx.viewport.width, ctx.viewport.height)
   local surface = ui.surface(ctx.viewport.width, ctx.viewport.height)
   surface:background("background")
   paint_chrome(surface, laid, state, snapshot, ctx.now)

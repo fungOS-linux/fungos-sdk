@@ -59,7 +59,16 @@ end
 
 local function check_edges(value, path)
   if value == nil then return end
-  if type(value) ~= "table" then error(path .. " must be a table", 3) end
+  -- A number is uniform padding. The layout honours it, so the validator has to
+  -- accept it: a validator stricter than the renderer only teaches views to fail
+  -- a check they would have passed on screen.
+  if type(value) == "number" then
+    if not is_finite_number(value) or value < 0 then
+      error(path .. " must be a finite non-negative number", 3)
+    end
+    return
+  end
+  if type(value) ~= "table" then error(path .. " must be a table or a number", 3) end
   for _, side in ipairs({ "top", "right", "bottom", "left" }) do
     local item = value[side]
     if item ~= nil and (not is_finite_number(item) or item < 0) then

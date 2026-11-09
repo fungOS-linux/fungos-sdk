@@ -89,6 +89,8 @@ ui.defaults = {
 
 -- The active profile is installed once per composed Spore UI module.
 ui.profile = copy(ui.defaults)
+--- Only the keys a caller installed, so `ui.theme` can tell a choice from a default.
+ui.overrides = {}
 
 --- When set, `ui.surface` returns a recording surface instead of calling the
 --- Canvas draw ABI. A GPU/replay host installs this around a view's render.
@@ -98,19 +100,39 @@ ui.backend = nil
 function ui.configure(profile, app_id)
   ui.profile = copy(ui.defaults)
   merge(ui.profile, profile or {})
+  -- What the caller asked for, kept apart from what `defaults` merely supplies.
+  -- `ui.theme` needs the distinction: a default body size is not an instruction
+  -- to draw at it, and letting it win over the host's theme is how a view ends up
+  -- measuring at 16 and drawing at 24.
+  ui.overrides = {}
+  if profile then merge(ui.overrides, profile) end
   if app_id and profile and type(profile.apps) == "table" and profile.apps[app_id] then
+    merge(ui.overrides, profile.apps[app_id])
     merge(ui.profile, profile.apps[app_id])
   end
   return ui.profile
 end
 
 --- Resolve the host theme plus local overrides.
+---
+--- The host's own theme is the base, the same way `ui.viewport` reads
+--- `module.viewport`: a host that hands the module a theme is telling it the scale
+--- it will draw at. A surface normalised against a different body size draws text
+--- at a size the view never measured — 1.5x too large on a 1.5x theme, which
+--- overflows the column the view wrapped for.
 function ui.theme(base)
-  local out = copy(base or {})
-  merge(out, ui.profile.theme or {})
-  if ui.profile.radius then out.radius = ui.profile.radius end
+  local module = rawget(_G, "module")
+  -- Defaults, then the host's theme, then the caller's own choices. A default is
+  -- not an instruction: letting one win over the host is how a view measures at
+  -- 16 and draws at 24, which overflows the column it wrapped for.
+  local out = copy(ui.defaults.theme)
+  merge(out, base or (module and module.theme) or {})
+  local overrides = ui.overrides or {}
+  merge(out, overrides.theme or {})
+  if overrides.radius then out.radius = overrides.radius end
   return out
 end
+
 
 --- Current viewport, in logical pixels. Falls back to the authoring size.
 function ui.viewport(fallback_w, fallback_h)
@@ -207,6 +229,30 @@ end
 
 function ui.spacer(id, layout)
   return node("spacer", id, layout)
+end
+
+--- A column that carries a fill, so `ui.paint_tree` can draw it.
+---
+--- The kit has no notion of "this region is a card": a container is geometry and
+--- nothing else. A fill is a presentation fact, so it lives in `style`, beside the
+--- size and ink a text node already keeps there.
+function ui.panel(id, layout, children, opts)
+  return ui.filled(ui.column(id, layout, children), opts)
+end
+
+--- Give a node a fill. Any container can be a card; this is how a view says so,
+--- instead of the kit having to guess which containers are panels.
+---
+--- The fill is presentation metadata in `style`, the same place a text node keeps
+--- its size and ink, so `ui.paint_tree` can read it and a host that paints its own
+--- way can ignore it.
+function ui.filled(node, opts)
+  opts = opts or {}
+  node.style = node.style or {}
+  node.style.fill = opts.fill or "surface"
+  node.style.opacity = opts.opacity == nil and 0.36 or opts.opacity
+  node.style.radius = opts.radius == nil and 8 or opts.radius
+  return node
 end
 
 --- A pressable control. The tree only carries the affordance and action id;
@@ -828,11 +874,146 @@ function ui.set_component_resolver(resolver)
   ui._component_resolver = resolver
 end
 
+--- Pure-Lua layout for a `fungos.ui` tree, when the host has no layout service.
+---
+--- A Canvas host exposes `canvas.layout` (Taffy) and `ui.layout` prefers it. Every
+--- other host — `tools/shot.lua`, `chrome-host`, a test fixture, a scene recorder
+--- — records primitives and offers no layout, and a view that hands such a host a
+--- tree arrives somewhere that cannot lay it out: the snapshot is fine and the
+--- scene is empty. This is the fallback that closes that gap, so a view is written
+--- once and paints the same geometry everywhere.
+---
+--- It honours the hints the views actually declare: direction, gap, padding,
+--- fixed sizes and flex_grow. It is deliberately not a stub — a stubbed layout
+--- (every child 20px tall, no gap) draws a scene of the right size and the wrong
+--- picture, which is harder to notice than a failure.
+---
+--- The shape matches the host's: `{ root = <rect>, nodes = <flat list> }`, where
+--- every listed node is the original node carrying a pixel `rect`, so a painter
+--- can still read `kind`, `text`, `style` and `action` from it.
+local function layout_padding(node)
+  local padding = node.layout and node.layout.padding
+  local top, right, bottom, left = 0, 0, 0, 0
+  -- A number is uniform padding. Views write `padding = 16` far more often than
+  -- the table form, and silently treating it as zero is how a panel ends up with
+  -- its text welded to its border.
+  if type(padding) == "number" then
+    return padding, padding, padding, padding
+  end
+  if type(padding) == "table" then
+    top = padding.top or 0
+    right = padding.right or 0
+    bottom = padding.bottom or 0
+    left = padding.left or 0
+  end
+  return top, right, bottom, left
+end
+
+local function layout_fixed(node, direction)
+  local spec = node.layout or {}
+  local value = direction == "row" and spec.width or spec.height
+  return type(value) == "number" and value or nil
+end
+
+local function layout_default(node)
+  if node.kind == "text" then
+    local size = node.style and node.style.size
+    return type(size) == "number" and (size + 4) or 20
+  end
+  if node.kind == "rule" then return 2 end
+  if node.kind == "spacer" then return 8 end
+  return nil
+end
+
+local function layout_assign(node, x, y, width, height, out)
+  node.rect = { x = x, y = y, width = width, height = height }
+  out[#out + 1] = node
+
+  local children = node.children
+  if type(children) ~= "table" or #children == 0 then return end
+
+  local spec = node.layout or {}
+  local direction = spec.direction or "column"
+  local gap = spec.gap or 0
+  local pad_top, pad_right, pad_bottom, pad_left = layout_padding(node)
+  local content_x, content_y = x + pad_left, y + pad_top
+  local content_w = width - pad_left - pad_right
+  local content_h = height - pad_top - pad_bottom
+
+  local count = #children
+  local total = direction == "row" and content_w or content_h
+  local gaps = gap * math.max(0, count - 1)
+
+  -- A flex child must stay flex. Resolving it to its content height first would
+  -- pin a sender at fourteen pixels and push the timestamp over it, which is
+  -- what the interface actually draws if the grow is ignored.
+  local sizes, fixed, flex_total = {}, 0, 0
+  for index, child in ipairs(children) do
+    local size = layout_fixed(child, direction)
+    if size ~= nil then
+      sizes[index] = size
+      fixed = fixed + size
+    else
+      local grow = child.layout and child.layout.flex_grow or 0
+      if type(grow) == "number" and grow > 0 then
+        sizes[index] = false
+        flex_total = flex_total + grow
+      else
+        local fallback = layout_default(child)
+        if fallback ~= nil then
+          sizes[index] = fallback
+          fixed = fixed + fallback
+        else
+          sizes[index] = false
+        end
+      end
+    end
+  end
+
+  local remaining = math.max(0, total - fixed - gaps)
+  for index, child in ipairs(children) do
+    if sizes[index] == false then
+      local grow = child.layout and child.layout.flex_grow or 0
+      if flex_total > 0 and type(grow) == "number" and grow > 0 then
+        sizes[index] = remaining * (grow / flex_total)
+      else
+        sizes[index] = remaining / math.max(1, count)
+      end
+    end
+  end
+
+  local cursor = 0
+  for index, child in ipairs(children) do
+    local size = sizes[index]
+    if direction == "row" then
+      layout_assign(child, content_x + cursor, content_y, size, content_h, out)
+    else
+      layout_assign(child, content_x, content_y + cursor, content_w, size, out)
+    end
+    cursor = cursor + size + gap
+  end
+end
+
+--- Lay out `tree` in a `width` x `height` surface.
+---
+--- Returns `{ root = <rect>, nodes = <flat list> }`, matching the host's shape so
+--- a view can reach for either without noticing.
+function ui.layout_tree(tree, width, height)
+  assert(type(tree) == "table", "ui.layout_tree needs a tree")
+  local out = {}
+  layout_assign(tree, 0, 0, width or 0, height or 0, out)
+  return { root = tree.rect, nodes = out }
+end
+
 function ui.layout(tree, width, height)
   if ui._component_resolver then
     tree = ui._component_resolver(tree)
   end
-  return canvas.layout(tree, width, height)
+  local host = rawget(_G, "canvas")
+  if type(host) == "table" and type(host.layout) == "function" then
+    return host.layout(tree, width, height)
+  end
+  return ui.layout_tree(tree, width, height)
 end
 
 --- Index laid-out nodes by id.
@@ -1364,6 +1545,87 @@ function ui.paint_text(surface, laid, ink_for)
       end
     end
   end
+end
+
+--- Lay a tree out and paint it into this frame's surface.
+---
+--- This is the whole contract a view needs: build the tree, hand it here. The
+--- layout comes from the host when it has one and from `ui.layout_tree` when it
+--- does not, so the same view draws the same geometry under Canvas, `tend`,
+--- `chrome-host` and `tools/shot.lua`. A view that returns a tree instead of
+--- presenting it paints nothing anywhere, because no host in this system lays
+--- out a tree it is handed.
+---
+--- Returns the hit targets (see `ui.paint_tree`).
+function ui.present(tree, opts)
+  opts = opts or {}
+  local width, height = ui.viewport(opts.width or 1200, opts.height or 900)
+  local laid = ui.layout(tree, width, height)
+  local surface = ui.surface(width, height, opts.theme or ui.theme())
+  return ui.paint_tree(surface, laid, opts)
+end
+
+--- Paint a laid-out tree: fills first, then rules, then text.
+---
+--- The order is the job. Canvas sorts by z and breaks ties by insertion, so a
+--- panel drawn after its text covers it; three passes make the order a property
+--- of the painter instead of a consequence of how a view built its children.
+---
+--- Returns the hit targets for nodes that carry an `action`. A host that
+--- implements `widget.button` is handed them directly; the return value keeps
+--- them addressable for a host that does not.
+function ui.paint_tree(surface, laid, opts)
+  opts = opts or {}
+  local nodes = (laid and laid.nodes) or {}
+  local hits = {}
+
+  local function fill_of(item)
+    if opts.fill then return opts.fill(item) end
+    local style = item.style or {}
+    if style.fill then return style.fill, style.opacity or 1, style.radius or 0 end
+    if item.selected then return "primary", 0.16, style.radius or 6 end
+    if item.variant == "primary" then return "primary", 0.18, style.radius or 8 end
+    if item.variant == "danger" then return "danger", 0.18, style.radius or 8 end
+    return nil
+  end
+
+  for _, item in ipairs(nodes) do
+    local rect = item.rect
+    if rect then
+      local ink, opacity, radius = fill_of(item)
+      if ink then
+        surface:rect(item.id, rect.x, rect.y, rect.width, rect.height, ink, opacity, radius, opts.z)
+      end
+    end
+  end
+
+  ui.paint_rules(surface, laid, opts.rule_ink, opts.rule_opacity)
+  ui.paint_text(surface, laid, opts.ink_for)
+
+  for _, item in ipairs(nodes) do
+    if item.action and item.rect then
+      local spec = {
+        id = item.id,
+        x = item.rect.x,
+        y = item.rect.y,
+        width = item.rect.width,
+        height = item.rect.height,
+        action = item.action,
+      }
+      hits[#hits + 1] = spec
+      -- A scene surface keeps its own hit list, so a capture (`tend --scene`,
+      -- `ui.capture`) reports the same targets a compositor would receive. The
+      -- geometry it wants is pixel rects, not the spec's flat fields.
+      if type(surface.hit) == "function" then
+        surface:hit(item.id, item.rect, "button")
+      end
+      local host = rawget(_G, "widget")
+      if type(host) == "table" and type(host.button) == "function" then
+        host.button(spec)
+      end
+    end
+  end
+  return hits
 end
 
 --- Draw laid-out rules.

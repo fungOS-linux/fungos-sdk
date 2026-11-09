@@ -302,21 +302,6 @@ local function module_loaders(sdk, sources)
   return table.concat(chunks, ",\n")
 end
 
-local function flatten(node, x, y, width, height, out)
-  if type(node) ~= "table" then return end
-  local rect = { x = x, y = y, width = width, height = height }
-  out[#out + 1] = {
-    id = node.id,
-    kind = node.kind,
-    text = node.text,
-    style = node.style,
-    rect = rect,
-  }
-  for index, child in ipairs(node.children or {}) do
-    flatten(child, x, y + (index - 1) * 20, width, 20, out)
-  end
-end
-
 local function json_escape(value)
   return '"' .. tostring(value):gsub('[%z\1-\31\\"]', function(char)
     local map = { ['"'] = '\"', ['\\'] = '\\\\', ['\b'] = '\\b', ['\f'] = '\\f', ['\n'] = '\\n', ['\r'] = '\\r', ['\t'] = '\\t' }
@@ -370,6 +355,7 @@ local function host_env(options)
   local now = os.time()
   local civil = os.date("*t", now)
   local validate = dofile(join(options.sdk, "lua/fungos/validate.lua"))
+  local kit = dofile(join(options.sdk, "lua/fungos/ui.lua"))
   local env = {
     module = {
       viewport = { width = width, height = height },
@@ -398,9 +384,10 @@ local function host_env(options)
           local laid = assert(load(output, "@soil-layout"))()
           return laid
         end
-        local nodes = {}
-        flatten(tree, 0, 0, w, h, nodes)
-        return { root = { x = 0, y = 0, width = w, height = h }, nodes = nodes }
+        -- The kit's own pass, not a stub: a fake host that stacks every child
+        -- 20px down with no gap draws a scene of the right size and the wrong
+        -- picture, and a check that passes on that is worse than no check.
+        return kit.layout_tree(tree, w, h)
       end,
       measure_text = function(text, style)
         local size = (style and style.size) or 16
