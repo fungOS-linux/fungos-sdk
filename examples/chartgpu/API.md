@@ -45,6 +45,26 @@ lua tools/tend.lua watch examples/chartgpu/compact.lua \
   --name chartgpu --surface chartgpu --no-workspace
 ```
 
+## Dense scene path
+
+`scene_live.lua` is the quality-first Lua path. It does not go through the Lua
+module limit: it writes a validated Canvas `scene` surface directly. The current
+five-panel replay is 557 nodes (60, 48, 44, 40 and 40 columns per series), with
+axes, panel chrome and legends. A one-shot patch is about 111 KiB and applies in
+roughly 0.13 s on the running Canvas.
+
+```sh
+lua examples/chartgpu/scene_live.lua --once
+# or, for a deliberately low-rate live replay:
+lua examples/chartgpu/scene_live.lua --fps 1
+```
+
+The scene path gets much closer to the native ChartGPU density than the 16-column
+module fallback. It is still a patch per frame: live updates raise Canvas's p95
+CPU update time to roughly 28 ms, so it is a quality demo rather than a 60 Hz
+replacement. True native smoothness still needs a host line/area primitive or a
+GPU lease rather than more Lua scene nodes.
+
 ## Stable ids
 
 `compact.lua` namespaces ids by panel prefix (`latency-`, `throughput-`,
