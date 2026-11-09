@@ -582,6 +582,34 @@ local function capture(source, name, options)
     path, #(present.nodes or {}), #(hits or {}), layout_mode()))
 end
 
+--- `ui.*` names a view calls that the library this composer will hand it lacks.
+---
+--- `require("fungos.ui")` always resolves to the SDK's own copy (`MODULES`), so a
+--- view written against a differently-shaped `fungos.ui` — the package in
+--- `spores/sdk/ui`, say — dies at load with "attempt to call a nil value (field
+--- 'card')". That reads like a bug in the view and is a resolution bug, and the
+--- difference is one static scan away. Named before anything runs instead.
+local function missing_ui_symbols(path, sdk)
+  local library = MODULES["fungos.ui"]
+  if not library then return {} end
+  local chunk = load(strip_comments(read(join(sdk, library))), "@fungos.ui")
+  -- A library that needs its own requires cannot be loaded in isolation here.
+  -- A check that cannot run must not fail the build, so it reports nothing.
+  if not chunk then return {} end
+  local ok, ui = pcall(chunk)
+  if not ok or type(ui) ~= "table" then return {} end
+
+  local missing, seen = {}, {}
+  for name in strip_comments(read(path)):gmatch("ui%.([%a_][%w_]*)") do
+    if not seen[name] then
+      seen[name] = true
+      if ui[name] == nil then missing[#missing + 1] = name end
+    end
+  end
+  table.sort(missing)
+  return missing
+end
+
 local function preflight(source, name, options)
   if options.preflight == false then return end
   local validate = dofile(join(options.sdk, "lua/fungos/validate.lua"))
@@ -692,6 +720,18 @@ local function compose(options)
     "view.render(snapshot)",
     "",
   }, "\n")
+
+  local missing = missing_ui_symbols(options.view, options.sdk)
+  if #missing > 0 then
+    io.stderr:write(string.format(
+      "tend: %s calls %s, which the resolved fungos.ui (%s) does not provide.\n"
+        .. "      The view targets a different library: name it in `tend.lua` components\n"
+        .. "      and compose it with a tool that resolves that package.\n",
+      options.view,
+      "ui." .. table.concat(missing, ", ui."),
+      join(options.sdk, MODULES["fungos.ui"])))
+    os.exit(2)
+  end
 
   local name = options.name
   if options.scene then
