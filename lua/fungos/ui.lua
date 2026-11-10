@@ -1359,10 +1359,11 @@ function ui.surface(width, height, theme)
   function surface:ts(px) return px / (base * 1.25) end
 
   function surface:rect(id, x, y, w, h, ink, opacity, radius, z)
-    local ink_name = color_parts(ink, "surface")
+    local ink_name, rgb = color_parts(ink, "surface")
     canvas.rect {
       id = id,
       ink = ink_name,
+      rgb = rgb,
       opacity = opacity == nil and 1.0 or opacity,
       radius = radius or 0,
       translation = { self:nx(x), self:ny(y), z or self.z },
@@ -1371,11 +1372,12 @@ function ui.surface(width, height, theme)
   end
 
   function surface:text(id, value, x, y, size, ink, z)
-    local ink_name = color_parts(ink, "text")
+    local ink_name, rgb = color_parts(ink, "text")
     canvas.text {
       id = id,
       text = tostring(value or ""),
       ink = ink_name,
+      rgb = rgb,
       translation = { self:nx(x), self:ny(y), z or (self.z + 0.1) },
       scale = { self:ts(size), self:ts(size), 1 },
     }
@@ -1563,6 +1565,51 @@ function ui.present(tree, opts)
   local laid = ui.layout(tree, width, height)
   local surface = ui.surface(width, height, opts.theme or ui.theme())
   return ui.paint_tree(surface, laid, opts)
+end
+
+--- Draw a tab strip into a surface and return where each tab landed.
+---
+--- `paint_text` and `paint_rules` exist because a view that places its own pixels
+--- still wants the library's typography and separators. A tab strip is the same
+--- kind of thing: sessions, documents and panes all need one, and a per-app copy
+--- is where the widths, the active rule and the padding start disagreeing.
+---
+--- `tabs` is `{ { id, label, selected?, muted?, action? } }`. The return value is
+--- the hit list — `{ id, x, y, width, height, action }` in the same pixels the
+--- strip was drawn in — so a host can turn a click into an action without
+--- repeating the layout arithmetic.
+function ui.paint_tabs(surface, x, y, width, height, tabs, opts)
+  opts = opts or {}
+  local size = opts.size or 11
+  local pad = opts.padding or 12
+  local gap = opts.gap or 2
+  local z = opts.z
+  local hits = {}
+  local cursor = x
+  for index, tab in ipairs(tabs or {}) do
+    local label = tostring(tab.label or "tab")
+    local tab_width = math.floor(#label * size * 0.58 + pad * 2)
+    if cursor + tab_width > x + width then break end
+    local id = tostring(tab.id or index)
+    if tab.selected then
+      surface:rect("tab-" .. id .. "-active", cursor, y, tab_width, height, "surface", 0.30, 6, z)
+      surface:rect("tab-" .. id .. "-rule", cursor, y + height - 2, tab_width, 2, "primary", 0.9, 0, z)
+    end
+    surface:text("tab-" .. id .. "-label", label, cursor + pad,
+      y + math.floor((height - size) / 2), size,
+      tab.selected and "primary" or (tab.muted and "muted" or "text"))
+    hits[#hits + 1] = {
+      id = id,
+      label = label,
+      x = cursor,
+      y = y,
+      width = tab_width,
+      height = height,
+      action = tab.action,
+    }
+    cursor = cursor + tab_width + gap
+  end
+  return hits
 end
 
 --- Paint a laid-out tree: fills first, then rules, then text.
