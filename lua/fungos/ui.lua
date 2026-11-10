@@ -1097,6 +1097,41 @@ function ui.scene_surface(width, height, theme)
     }
   end
 
+  --- One text node per line, not one per colour change.
+  ---
+  --- A terminal row is a single line that changes colour part-way through.
+  --- Painting it as one node per run costs a node per run; the line is the
+  --- thing, the runs are only how it is painted. The node still carries `text`
+  --- (the runs concatenated) and the first run's ink, so a host that has not
+  --- learned `runs` draws the line in one colour instead of drawing nothing.
+  function surface:text_runs(id, runs, x, y, size, ink, z)
+    local styled, joined = {}, {}
+    for _, run in ipairs(runs or {}) do
+      local value = tostring(run.text or run[1] or "")
+      if value ~= "" then
+        local ink_name, rgb = color_parts(run.ink or run[2], nil)
+        styled[#styled + 1] = { text = value, ink = ink_name, rgb = rgb }
+        joined[#joined + 1] = value
+      end
+    end
+    if #styled == 0 then return end
+    local first = styled[1]
+    local ink_name, rgb = color_parts(ink or first.ink, "text")
+    self.scene.nodes[#self.scene.nodes + 1] = {
+      id = self:unique(id),
+      transform = {
+        translation = { self:nx(x), self:ny(y), z or (self.z + 0.1) },
+        scale = { self:ts(size), self:ts(size), 1 },
+      },
+      type = "text",
+      text = table.concat(joined),
+      ink = ink_name,
+      rgb = rgb or first.rgb,
+      runs = styled,
+      opacity = 1.0,
+    }
+  end
+
   function surface:measure_text(value, size)
     local api = rawget(_G, "canvas")
     if type(api) == "table" and type(api.measure_text) == "function" then
@@ -1326,6 +1361,7 @@ function ui.subsurface(parent, x, y, width, height, prefix)
   -- primitive bodies still live in the parent; only identity is namespaced.
   function sub:rect(id, ...) return parent.rect(self, prefix .. id, ...) end
   function sub:text(id, ...) return parent.text(self, prefix .. id, ...) end
+  function sub:text_runs(id, ...) return parent.text_runs(self, prefix .. id, ...) end
   function sub:line(id, ...) return parent.line(self, prefix .. id, ...) end
   function sub:polyline(id, ...) return parent.polyline(self, prefix .. id, ...) end
   function sub:area(id, ...) return parent.area(self, prefix .. id, ...) end
@@ -1378,6 +1414,31 @@ function ui.surface(width, height, theme)
       text = tostring(value or ""),
       ink = ink_name,
       rgb = rgb,
+      translation = { self:nx(x), self:ny(y), z or (self.z + 0.1) },
+      scale = { self:ts(size), self:ts(size), 1 },
+    }
+  end
+
+  --- See `ui.scene_surface`'s `text_runs`: one node per line, runs inside it.
+  function surface:text_runs(id, runs, x, y, size, ink, z)
+    local styled, joined = {}, {}
+    for _, run in ipairs(runs or {}) do
+      local value = tostring(run.text or run[1] or "")
+      if value ~= "" then
+        local ink_name, rgb = color_parts(run.ink or run[2], nil)
+        styled[#styled + 1] = { text = value, ink = ink_name, rgb = rgb }
+        joined[#joined + 1] = value
+      end
+    end
+    if #styled == 0 then return end
+    local first = styled[1]
+    local ink_name, rgb = color_parts(ink or first.ink, "text")
+    canvas.text {
+      id = id,
+      text = table.concat(joined),
+      ink = ink_name,
+      rgb = rgb or first.rgb,
+      runs = styled,
       translation = { self:nx(x), self:ny(y), z or (self.z + 0.1) },
       scale = { self:ts(size), self:ts(size), 1 },
     }
