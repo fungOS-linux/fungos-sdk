@@ -143,9 +143,7 @@ local API_SECTIONS = {
   "theme/config", "stable ids", "authority",
 }
 
-local function check_api(options)
-  if not options.check_api then return true end
-  local path = api_path(options.view)
+local function check_api_file(path)
   if not exists(path) then
     io.stderr:write("tend: missing Lua API documentation: " .. path .. "\n")
     io.stderr:write("tend: every Spore UI must ship ui/API.md; see docs/lua-api-contract.md\n")
@@ -186,6 +184,39 @@ local function expand_pattern(root, pattern)
   if not pattern or pattern == "" then return {} end
   local absolute = pattern:sub(1, 1) == "/" and pattern or join(root, pattern)
   return shell_lines("ls -d " .. absolute .. " 2>/dev/null")
+end
+
+-- A view is either a single Spore UI or a composition config naming `members`.
+-- For a composition the documentation lives beside each member's UI, so the
+-- check has to walk the members. Deriving the path from `dirname(view)` pointed
+-- at the repo root and demanded an ./API.md that no Spore owns.
+local function check_api(options)
+  if not options.check_api then return true end
+  local root = options.workspace or "."
+  local targets = {}
+  local config_path = join(root, "tend.lua")
+  if exists(config_path) then
+    local chunk = loadfile(config_path)
+    -- `chunk and pcall(chunk)` truncates pcall's multiple returns to one, so
+    -- the config would always be nil. Keep both values.
+    local ok, config = false, nil
+    if chunk then ok, config = pcall(chunk) end
+    if ok and type(config) == "table" and config.members then
+      for _, pattern in ipairs(config.members) do
+        -- `exists` opens the path as a file, so it is false for a directory;
+        -- glob the UI directories instead of testing them.
+        for _, ui_dir in ipairs(expand_pattern(root, pattern .. "/ui")) do
+          targets[#targets + 1] = join(ui_dir, "API.md")
+        end
+      end
+    end
+  end
+  if #targets == 0 then targets[1] = api_path(options.view) end
+  local all = true
+  for _, path in ipairs(targets) do
+    if not check_api_file(path) then all = false end
+  end
+  return all
 end
 
 local function load_workspace(options)
